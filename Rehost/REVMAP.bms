@@ -1,0 +1,20 @@
+REVMAP   DFHMSD TYPE=&SYSPARM,                                         -
+               LANG=COBOL,                                             -
+               MODE=INOUT,                                             -
+               STORAGE=AUTO,                                           -
+               TIOAPFX=YES,EXTATT=YES
+*       REVERSE MAP.
+REVMENU  DFHMDI SIZE=(24,80),                                          -
+               CTRL=(FREEKB,FRSET)
+         DFHMDF POS=(03,10),ATTRB=(ASKIP,NORM),LENGTH=30,              -
+               INITIAL='Enter a word to reverse:'
+         DFHMDF POS=(06,10),ATTRB=(ASKIP,NORM),LENGTH=15,              -
+               INITIAL='Reversed Word:'
+         DFHMDF POS=(24,01),ATTRB=(ASKIP,NORM),LENGTH=79,              -
+               INITIAL='PRESS ENTER'
+WORDIN   DFHMDF POS=(05,10),LENGTH=10,ATTRB=(UNPROT,IC),               -
+               INITIAL=' '
+WORDOUT  DFHMDF POS=(07,10),LENGTH=10,ATTRB=(ASKIP,NORM),              -
+               INITIAL=' '
+         DFHMSD TYPE=FINAL
+         END
