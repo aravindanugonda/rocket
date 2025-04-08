@@ -59,10 +59,7 @@
            ELSE
                MOVE "It is not a Palindrome." TO WS-DISPLAY-MESSAGE
            END-IF.
-<<<<<<< Upstream, based on origin/main
-           DISPLAY "Final Result:" WS-DISPLAY-MESSAGE.
-=======
+
            DISPLAY "Final Result for Project B:" WS-DISPLAY-MESSAGE.
->>>>>>> 9ae2447 Initial Check-in Project B
 
        END PROGRAM TESTCBL.
