@@ -60,6 +60,6 @@
                MOVE "It is not a Palindrome." TO WS-DISPLAY-MESSAGE
            END-IF.
 
-           DISPLAY "Final Result:" WS-DISPLAY-MESSAGE.
+           DISPLAY "Final Result from Rel C P1:" WS-DISPLAY-MESSAGE.
 
        END PROGRAM TESTCBL.
