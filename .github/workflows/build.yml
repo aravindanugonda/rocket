@@ -29,9 +29,6 @@ jobs:
           icacls "%BUILD_SCRIPT%" /grant:r "Everyone:(RX)"  
           
           REM Create directories and set permissions  
-          mkdir "C:\Git\rocket\Rehost" 2>nul  
-          mkdir "C:\Git\rocket\Rehost\loadlib" 2>nul  
-          mkdir "C:\Git\rocket\Rehost\listing" 2>nul  
           mkdir "C:\Temp\logs" 2>nul  
           mkdir "C:\ES" 2>nul  
           mkdir "C:\ES\%ENV_NAME%" 2>nul  
@@ -40,9 +37,6 @@ jobs:
           mkdir "C:\ES\SHARED\DIRECTIVES" 2>nul  
           
           REM Set permissions for all directories  
-          icacls "C:\Git\rocket\Rehost" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\Git\rocket\Rehost\loadlib" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\Git\rocket\Rehost\listing" /grant:r "Everyone:(OI)(CI)F"  
           icacls "C:\Temp\logs" /grant:r "Everyone:(OI)(CI)F"  
           icacls "C:\ES" /grant:r "Everyone:(OI)(CI)F"  
           icacls "C:\ES\%ENV_NAME%" /grant:r "Everyone:(OI)(CI)F"  
@@ -198,6 +192,12 @@ jobs:
             }  
           }  
 
+      - name: Update Build Script for Workspace Path  
+        shell: cmd  
+        run: |  
+          REM Replace hardcoded paths with GitHub workspace  
+          powershell -Command "(Get-Content '%BUILD_SCRIPT%') -replace 'C:\\Git\\rocket\\Rehost', '%GITHUB_WORKSPACE%' | Set-Content '%BUILD_SCRIPT%'"
+          
       - name: Compile Modified Files  
         id: build  
         shell: cmd  
