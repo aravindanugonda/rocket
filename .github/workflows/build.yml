@@ -5,9 +5,9 @@ on:
     types: [closed]  
     branches:  
       - main  
-      - 'release c'  
-      - 'release f'  
-      - 'release p'  
+      - 'release-c'  
+      - 'release-f'  
+      - 'release-p'  
 
 jobs:  
   COBOL-Compilation:  
@@ -74,13 +74,13 @@ jobs:
             "main" {  
               $envName = "SHARED"  
             }  
-            "release c" {  
+            "release-c" {  
               $envName = "CICSTSTQ"  
             }  
-            "release f" {  
+            "release-f" {  
               $envName = "CICSTSTG"  
             }  
-            "release p" {  
+            "release-p" {  
               $envName = "CICSWCS2"  
             }  
             default {  
