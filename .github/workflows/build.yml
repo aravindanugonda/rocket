@@ -196,6 +196,16 @@ jobs:
               Write-Host "Copied COBOL file: $file to ${{ env.CBL_DIR }}/$filename"  
             }  
           }  
+
+      - name: Create Environment Setup Wrapper  
+        shell: cmd  
+        run: |  
+          echo @echo off > setup_env.bat  
+          echo setlocal enabledelayedexpansion >> setup_env.bat  
+          echo set "MF_ROOT=%%ProgramFiles(x86)%%\Micro Focus\Enterprise Developer" >> setup_env.bat  
+          echo echo Setting up Enterprise Developer environment... >> setup_env.bat  
+          echo call "!MF_ROOT!\SetupEnv.bat" 32 >> setup_env.bat  
+          echo echo COBDIR=!COBDIR! >> setup_env.bat 
           
       - name: Compile Modified Files  
         id: build  
@@ -205,8 +215,11 @@ jobs:
           setlocal enabledelayedexpansion  
                    
           echo ======= STARTING COMPILATION =======  
-          echo Starting compilation of modified files for environment: %ENV_NAME%  
+
+          echo Running environment setup first...  
+          call setup_env.bat
           
+          echo Starting compilation of modified files for environment: %ENV_NAME%            
           set compilation_exit_code=0  
           
           :: Compile BMS files first if any  
