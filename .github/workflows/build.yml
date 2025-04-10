@@ -13,7 +13,7 @@ jobs:
   COBOL-Compilation:  
     # Only run if the PR was merged  
     if: github.event.pull_request.merged == true  
-    runs-on: [self-hosted]  
+    runs-on: [DESKTOP-Q50ERNH]  
     
     steps:  
       - name: Check out repository code  
