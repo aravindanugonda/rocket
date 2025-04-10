@@ -63,6 +63,7 @@ REM Setup Enterprise Developer environment if not already set
 if not defined COBDIR (  
   echo Setting up Enterprise Developer environment...  
   call "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" 32
+  echo COBDIR set to: %COBDIR% 
 )  
 
 REM Set log file  
