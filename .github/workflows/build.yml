@@ -8,12 +8,13 @@ on:
       - 'release-c'  
       - 'release-f'  
       - 'release-p'  
+  workflow_dispatch:       
 
 jobs:  
   COBOL-Compilation:  
     # Only run if the PR was merged  
-    if: github.event.pull_request.merged == true  
-    runs-on: [DESKTOP-Q50ERNH]  
+    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    runs-on: DESKTOP-Q50ERNH
     
     steps:  
       - name: Check out repository code  
