@@ -23,30 +23,41 @@ jobs:
           fetch-depth: 0  
 
       - name: Set Permissions  
-        shell: powershell  
+        shell: cmd  
         run: |  
-          # Grant permissions to the script  
-          icacls "${{ env.BUILD_SCRIPT }}" /grant:r "Everyone:(RX)"  
+          REM Grant permissions to the script  
+          icacls "%BUILD_SCRIPT%" /grant:r "Everyone:(RX)"  
           
-          # Ensure all required directories have permissions  
-          $dirs = @(  
-            "C:\Git\rocket\Rehost",  
-            "C:\Git\rocket\Rehost\loadlib",  
-            "C:\Git\rocket\Rehost\listing",  
-            "C:\Temp\logs",  
-            "C:\ES",  
-            "C:\ES\${{ env.ENV_NAME }}",  
-            "C:\ES\${{ env.ENV_NAME }}\LOADLIB",  
-            "C:\ES\SHARED",  
-            "C:\ES\SHARED\DIRECTIVES"  
-          )  
+          REM Create directories and set permissions  
+          mkdir "C:\Git\rocket\Rehost" 2>nul  
+          mkdir "C:\Git\rocket\Rehost\loadlib" 2>nul  
+          mkdir "C:\Git\rocket\Rehost\listing" 2>nul  
+          mkdir "C:\Temp\logs" 2>nul  
+          mkdir "C:\ES" 2>nul  
+          mkdir "C:\ES\%ENV_NAME%" 2>nul  
+          mkdir "C:\ES\%ENV_NAME%\LOADLIB" 2>nul  
+          mkdir "C:\ES\SHARED" 2>nul  
+          mkdir "C:\ES\SHARED\DIRECTIVES" 2>nul  
           
-          foreach ($dir in $dirs) {  
-            if (-not (Test-Path $dir)) {  
-              New-Item -Path $dir -ItemType Directory -Force  
-            }  
-            icacls $dir /grant:r "Everyone:(OI)(CI)F"  
-          } 
+          REM Set permissions for all directories  
+          icacls "C:\Git\rocket\Rehost" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\Git\rocket\Rehost\loadlib" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\Git\rocket\Rehost\listing" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\Temp\logs" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES\%ENV_NAME%" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES\%ENV_NAME%\LOADLIB" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES\SHARED" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES\SHARED\DIRECTIVES" /grant:r "Everyone:(OI)(CI)F"  
+          
+          REM Create default directive file if it doesn't exist  
+          if not exist "C:\ES\SHARED\DIRECTIVES\CBL.dir" (  
+            echo sourcetabs > "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+            echo cicsecm(int) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+            echo charset(ascii) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+            echo dialect(mf) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+            echo anim >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+          )
           
       - name: Get modified files from PR  
         id: changes  
