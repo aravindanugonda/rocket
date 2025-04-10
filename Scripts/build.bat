@@ -19,16 +19,10 @@ set listing=%build_base%\listing
 set logdir=C:\Temp\logs  
 
 REM Copybook directories  
-# set cpy_dir=%source_base%\cpy  
-# set bms_cpy=%source_base%\bmscpy  
-
 set cpy_dir=%source_base%
 set bms_cpy=%source_base%
 
 REM Default directories for types  
-# set cbl_dir=%source_base%\cbl  
-# set bms_dir=%source_base%\bms  
-
 set cbl_dir=%source_base%
 set bms_dir=%source_base%
 
@@ -68,7 +62,7 @@ set mytime=%mytime: =%
 REM Setup Enterprise Developer environment if not already set  
 if not defined COBDIR (  
   echo Setting up Enterprise Developer environment...  
-  call "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat"  
+  call "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" 32
 )  
 
 REM Set log file  
@@ -81,8 +75,6 @@ if not exist "%bms_cpy%" mkdir "%bms_cpy%"
 if not exist "%cbl_dir%" mkdir "%cbl_dir%"  
 if not exist "%bms_dir%" mkdir "%bms_dir%"  
 if not exist "%loadlib%" mkdir "%loadlib%"  
-if not exist "%listing%\BMS" mkdir "%listing%\BMS"   
-if not exist "%listing%\CBL" mkdir "%listing%\CBL"  
 if not exist "%logdir%" mkdir "%logdir%"  
 if not exist "%execpath%" mkdir "%execpath%"  
 
