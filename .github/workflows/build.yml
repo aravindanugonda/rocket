@@ -174,7 +174,7 @@ jobs:
           
           rem Compile BMS files first if any  
           if "%bms%" == "y" (  
-            for /F "tokens=*" %%f in ('powershell -Command "$env:bms_files -split '';''"') do (  
+            for /F "usebackq delims=" %%f in (`powershell -Command "$env:bms_files -split ';'"`) do (  
               set "fullpath=%%f"  
               for %%F in ("!fullpath!") do (  
                 set "filename=%%~nF"  
@@ -187,7 +187,7 @@ jobs:
           
           rem Compile COBOL files  
           if "%cbl%" == "y" (  
-            for /F "tokens=*" %%f in ('powershell -Command "$env:cbl_files -split '';''"') do (  
+            for /F "usebackq delims=" %%f in (`powershell -Command "$env:cbl_files -split ';'"`) do (  
               set "fullpath=%%f"  
               for %%F in ("!fullpath!") do (  
                 set "filename=%%~nF"  
