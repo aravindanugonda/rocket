@@ -8,12 +8,11 @@ on:
       - release-c
       - release-f
       - release-p
-  workflow_dispatch:       
 
 jobs:  
   COBOL-Compilation:  
     # Only run if the PR was merged  
-    if: github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    if: github.event.pull_request.merged == true
     runs-on: self-hosted
     
     steps:  
@@ -21,37 +20,6 @@ jobs:
         uses: actions/checkout@v3  
         with:  
           fetch-depth: 0  
-
-      - name: Set Permissions  
-        shell: cmd  
-        run: |  
-          REM Grant permissions to the script  
-          icacls "%BUILD_SCRIPT%" /grant:r "Everyone:(RX)"  
-          
-          REM Create directories and set permissions  
-          mkdir "C:\Temp\logs" 2>nul  
-          mkdir "C:\ES" 2>nul  
-          mkdir "C:\ES\%ENV_NAME%" 2>nul  
-          mkdir "C:\ES\%ENV_NAME%\LOADLIB" 2>nul  
-          mkdir "C:\ES\SHARED" 2>nul  
-          mkdir "C:\ES\SHARED\DIRECTIVES" 2>nul  
-          
-          REM Set permissions for all directories  
-          icacls "C:\Temp\logs" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES\%ENV_NAME%" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES\%ENV_NAME%\LOADLIB" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES\SHARED" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES\SHARED\DIRECTIVES" /grant:r "Everyone:(OI)(CI)F"  
-          
-          REM Create default directive file if it doesn't exist  
-          if not exist "C:\ES\SHARED\DIRECTIVES\CBL.dir" (  
-            echo sourcetabs > "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
-            echo cicsecm(int) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
-            echo charset(ascii) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
-            echo dialect(mf) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
-            echo anim >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
-          )
           
       - name: Get modified files from PR  
         id: changes  
@@ -131,9 +99,9 @@ jobs:
           echo "BUILD_TAG=$buildTag" >> $env:GITHUB_ENV  
           
           # Set source and target directories  
-          $basePath = "C:\Git\rocket\Rehost"  
-          $buildBase = "C:\Git\rocket\Rehost"  
-          $sourceBase = "C:\Git\rocket\Rehost"  
+          $basePath = "C:\Build\Rehost"  
+          $buildBase = "C:\Build\Rehost"  
+          $sourceBase = "C:\Build\Rehost"  
           
           echo "BASE_PATH=$basePath" >> $env:GITHUB_ENV  
           echo "BUILD_BASE=$buildBase" >> $env:GITHUB_ENV  
@@ -147,6 +115,43 @@ jobs:
           Write-Host "Environment: $envName (from branch: $targetBranch)"  
           Write-Host "Build Tag: $buildTag"  
 
+      - name: Set Permissions  
+        shell: cmd  
+        run: |  
+          REM Grant permissions to the script  
+          icacls "%BUILD_SCRIPT%" /grant:r "Everyone:(RX)"  
+          
+          REM Create directories and set permissions  
+          mkdir "C:\Build\Rehost" 2>nul  
+          mkdir "C:\Build\Rehost\loadlib" 2>nul  
+          mkdir "C:\Build\Rehost\listing" 2>nul            
+          mkdir "C:\Temp\logs" 2>nul  
+          mkdir "C:\ES" 2>nul  
+          mkdir "C:\ES\%ENV_NAME%" 2>nul  
+          mkdir "C:\ES\%ENV_NAME%\LOADLIB" 2>nul  
+          mkdir "C:\ES\SHARED" 2>nul  
+          mkdir "C:\ES\SHARED\DIRECTIVES" 2>nul  
+          
+          REM Set permissions for all directories  
+          icacls "C:\Build\Rehost" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\Build\Rehost\loadlib" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\Build\Rehost\listing" /grant:r "Everyone:(OI)(CI)F"            
+          icacls "C:\Temp\logs" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES\%ENV_NAME%" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES\%ENV_NAME%\LOADLIB" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES\SHARED" /grant:r "Everyone:(OI)(CI)F"  
+          icacls "C:\ES\SHARED\DIRECTIVES" /grant:r "Everyone:(OI)(CI)F"  
+          
+          REM Create default directive file if it doesn't exist  
+          if not exist "C:\ES\SHARED\DIRECTIVES\CBL.dir" (  
+            echo sourcetabs > "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+            echo cicsecm(int) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+            echo charset(ascii) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+            echo dialect(mf) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+            echo anim >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+          )
+          
       - name: Copy Source Files to Build Directory  
         id: copy_source  
         shell: pwsh  
@@ -191,13 +196,7 @@ jobs:
               Write-Host "Copied COBOL file: $file to ${{ env.CBL_DIR }}/$filename"  
             }  
           }  
-
-      - name: Update Build Script for Workspace Path  
-        shell: cmd  
-        run: |  
-          REM Replace hardcoded paths with GitHub workspace  
-          powershell -Command "(Get-Content '%BUILD_SCRIPT%') -replace 'C:\\Git\\rocket\\Rehost', '%GITHUB_WORKSPACE%' | Set-Content '%BUILD_SCRIPT%'"
-          
+         
       - name: Compile Modified Files  
         id: build  
         shell: cmd  
