@@ -11,9 +11,9 @@ REM =====================================================================
 
 :PARAMETERS  
 REM Base directories - Modify these for your environment  
-set base=C:\Git\rocket\Rehost  
-set build_base=C:\Git\rocket\Rehost  
-set source_base=C:\Git\rocket\Rehost  
+set base=C:\Build\Rehost
+set build_base=C:\Build\Rehost
+set source_base=C:\Build\Rehost
 set loadlib=%build_base%\loadlib  
 set listing=%build_base%\listing  
 set logdir=C:\Temp\logs  
