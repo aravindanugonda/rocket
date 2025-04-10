@@ -206,8 +206,10 @@ jobs:
           
           echo ======= PREPARING BUILD ENVIRONMENT =======  
           
-          :: Setup Enterprise Developer environment first  
-          call "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" 32  
+          :: Setup Enterprise Developer environment using environment variables  
+          set "MF_ROOT=%ProgramFiles(x86)%\Micro Focus\Enterprise Developer"  
+          echo Setting up Enterprise Developer from: !MF_ROOT!  
+          call "!MF_ROOT!\SetupEnv.bat" 32  
           echo COBDIR after setup: %COBDIR%  
           
           echo ======= STARTING COMPILATION =======  
