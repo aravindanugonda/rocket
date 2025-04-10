@@ -188,8 +188,8 @@ set COBCPY=%bms_cpy%;%cpy_dir%;%COBCPY%
 echo Using COBCPY=%COBCPY%>> %logfile%  
 
 REM Run the compilation  
-echo cobol %source_file%,nul, %listing%\CBL\%modname%.lst,nul, ANIM GNT(%loadlib%\%modname%.gnt) COBIDY(%loadlib%) USE(%directives%) NOQUERY ;>> %logfile%  
-cobol %source_file%,nul, %listing%\CBL\%modname%.lst,nul, ANIM GNT(%loadlib%\%modname%.gnt) COBIDY(%loadlib%) USE(%directives%) NOQUERY ;>> %logfile% 2>&1  
+echo cobol %source_file%,nul, %listing%\%modname%.lst,nul, ANIM GNT(%loadlib%\%modname%.gnt) COBIDY(%loadlib%) USE(%directives%) NOQUERY ;>> %logfile%  
+cobol %source_file%,nul, %listing%\%modname%.lst,nul, ANIM GNT(%loadlib%\%modname%.gnt) COBIDY(%loadlib%) USE(%directives%) NOQUERY ;>> %logfile% 2>&1  
 
 set _rc=%errorlevel%  
 
