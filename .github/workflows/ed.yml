@@ -1,0 +1,37 @@
+name: Test Enterprise Developer Setup  
+
+on:  
+  workflow_dispatch:  # This allows manual triggering  
+
+jobs:  
+  test-setup:  
+    runs-on: self-hosted  
+    steps:  
+      - name: Test SetupEnv.bat Execution  
+        shell: cmd  
+        run: |  
+          echo ======= TESTING SETUPENV.BAT =======  
+          echo Current Directory: %CD%  
+          echo Current User: %USERNAME%  
+          
+          echo ======= FILE CHECKS =======  
+          IF EXIST "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" (  
+            echo SetupEnv.bat EXISTS  
+          ) ELSE (  
+            echo SetupEnv.bat MISSING  
+            exit 1  
+          )  
+          
+          echo ======= ATTEMPTING SETUPENV.BAT =======  
+          call "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" 32  
+          echo SetupEnv.bat Return Code: %ERRORLEVEL%  
+          
+          echo ======= ENVIRONMENT AFTER SETUP =======  
+          echo COBDIR=%COBDIR%  
+          
+          IF DEFINED COBDIR (  
+            echo Enterprise Developer setup succeeded  
+          ) ELSE (  
+            echo Enterprise Developer setup failed  
+            exit 1  
+          )
