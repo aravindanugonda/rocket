@@ -196,7 +196,43 @@ jobs:
               Write-Host "Copied COBOL file: $file to ${{ env.CBL_DIR }}/$filename"  
             }  
           }  
-         
+
+      - name: Fix Enterprise Developer Permissions  
+        shell: cmd  
+        run: |  
+          echo Verifying Enterprise Developer installation...  
+          
+          REM Check if the directory exists  
+          if exist "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\" (  
+            echo Enterprise Developer directory found  
+          ) else (  
+            echo ERROR: Enterprise Developer directory not found  
+            exit 1  
+          )  
+          
+          REM Check if SetupEnv.bat exists  
+          if exist "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" (  
+            echo SetupEnv.bat found  
+          ) else (  
+            echo ERROR: SetupEnv.bat not found  
+            dir "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\" /b  
+            exit 1  
+          )  
+          
+          REM Set permissions on Enterprise Developer directory  
+          echo Setting permissions on Enterprise Developer directory...  
+          icacls "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer" /grant:r "Everyone:(OI)(CI)(RX)" /T  
+          
+          REM Create a test bat file to check environment setup  
+          echo @echo off > test_env.bat  
+          echo call "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" 32 >> test_env.bat  
+          echo echo COBDIR=%%COBDIR%% >> test_env.bat  
+          echo echo PATH=%%PATH%% >> test_env.bat  
+          
+          REM Run the test with elevated permissions if possible  
+          echo Testing Enterprise Developer environment setup...  
+          call test_env.bat
+          
       - name: Compile Modified Files  
         id: build  
         shell: cmd  
