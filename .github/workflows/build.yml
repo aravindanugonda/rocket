@@ -5,9 +5,9 @@ on:
     types: [closed]  
     branches:  
       - main  
-      - 'release-c'  
-      - 'release-f'  
-      - 'release-p'  
+      - release-c
+      - release-f
+      - release-p
   workflow_dispatch:       
 
 jobs:  
