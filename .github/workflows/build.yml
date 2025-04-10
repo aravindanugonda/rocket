@@ -196,42 +196,6 @@ jobs:
               Write-Host "Copied COBOL file: $file to ${{ env.CBL_DIR }}/$filename"  
             }  
           }  
-
-      - name: Fix Enterprise Developer Permissions  
-        shell: cmd  
-        run: |  
-          echo Verifying Enterprise Developer installation...  
-          
-          REM Check if the directory exists  
-          if exist "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\" (  
-            echo Enterprise Developer directory found  
-          ) else (  
-            echo ERROR: Enterprise Developer directory not found  
-            exit 1  
-          )  
-          
-          REM Check if SetupEnv.bat exists  
-          if exist "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" (  
-            echo SetupEnv.bat found  
-          ) else (  
-            echo ERROR: SetupEnv.bat not found  
-            dir "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\" /b  
-            exit 1  
-          )  
-          
-          REM Set permissions on Enterprise Developer directory  
-          echo Setting permissions on Enterprise Developer directory...  
-          icacls "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer" /grant:r "Everyone:(OI)(CI)(RX)" /T  
-          
-          REM Create a test bat file to check environment setup  
-          echo @echo off > test_env.bat  
-          echo call "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" 32 >> test_env.bat  
-          echo echo COBDIR=%%COBDIR%% >> test_env.bat  
-          echo echo PATH=%%PATH%% >> test_env.bat  
-          
-          REM Run the test with elevated permissions if possible  
-          echo Testing Enterprise Developer environment setup...  
-          call test_env.bat
           
       - name: Compile Modified Files  
         id: build  
@@ -240,11 +204,18 @@ jobs:
           @echo off  
           setlocal enabledelayedexpansion  
           
+          echo ======= PREPARING BUILD ENVIRONMENT =======  
+          
+          :: Setup Enterprise Developer environment first  
+          call "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" 32  
+          echo COBDIR after setup: %COBDIR%  
+          
+          echo ======= STARTING COMPILATION =======  
           echo Starting compilation of modified files for environment: %ENV_NAME%  
           
           set compilation_exit_code=0  
           
-          rem Compile BMS files first if any  
+          :: Compile BMS files first if any  
           if "%bms%" == "y" (  
             for /F "usebackq delims=" %%f in (`powershell -Command "$env:bms_files -split ';'"`) do (  
               set "fullpath=%%f"  
@@ -257,13 +228,21 @@ jobs:
             )  
           )  
           
-          rem Compile COBOL files  
+          :: Compile COBOL files  
           if "%cbl%" == "y" (  
             for /F "usebackq delims=" %%f in (`powershell -Command "$env:cbl_files -split ';'"`) do (  
               set "fullpath=%%f"  
               for %%F in ("!fullpath!") do (  
                 set "filename=%%~nF"  
                 echo Compiling COBOL file: !filename!  
+                echo ===== DEBUG INFO =====  
+                echo BUILD_SCRIPT: %BUILD_SCRIPT%  
+                echo Module type: CBL  
+                echo Module name: !filename!  
+                echo Environment: %ENV_NAME%  
+                echo Current directory: %CD%  
+                echo ===== END DEBUG INFO =====  
+                
                 call "%BUILD_SCRIPT%" CBL !filename! %ENV_NAME%  
                 if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!  
               )  
@@ -271,7 +250,7 @@ jobs:
           )  
           
           echo compilation_exit_code=%compilation_exit_code% >> %GITHUB_ENV%  
-          echo Compilation completed with exit code: %compilation_exit_code%  
+          echo Compilation completed with exit code: %compilation_exit_code%
 
       - name: Create Artifact  
         id: artifact_prep  
