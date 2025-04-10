@@ -21,7 +21,33 @@ jobs:
         uses: actions/checkout@v3  
         with:  
           fetch-depth: 0  
-      
+
+      - name: Set Permissions  
+        shell: powershell  
+        run: |  
+          # Grant permissions to the script  
+          icacls "${{ env.BUILD_SCRIPT }}" /grant:r "Everyone:(RX)"  
+          
+          # Ensure all required directories have permissions  
+          $dirs = @(  
+            "C:\Git\rocket\Rehost",  
+            "C:\Git\rocket\Rehost\loadlib",  
+            "C:\Git\rocket\Rehost\listing",  
+            "C:\Temp\logs",  
+            "C:\ES",  
+            "C:\ES\${{ env.ENV_NAME }}",  
+            "C:\ES\${{ env.ENV_NAME }}\LOADLIB",  
+            "C:\ES\SHARED",  
+            "C:\ES\SHARED\DIRECTIVES"  
+          )  
+          
+          foreach ($dir in $dirs) {  
+            if (-not (Test-Path $dir)) {  
+              New-Item -Path $dir -ItemType Directory -Force  
+            }  
+            icacls $dir /grant:r "Everyone:(OI)(CI)F"  
+          } 
+          
       - name: Get modified files from PR  
         id: changes  
         shell: pwsh  
