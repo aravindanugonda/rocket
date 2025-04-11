@@ -11,8 +11,6 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Test SetupEnv through wrapper script
-        # Add an ID if you need to reference outputs (like COBDIR) in a different *job*
-        # id: setup_step
         shell: cmd
         run: |
           echo ======= TESTING ENTERPRISE DEVELOPER SETUP =======
@@ -28,7 +26,6 @@ jobs:
           rem --- Optional: Check if the target SetupEnv.bat exists ---
           echo ======= PRE-CHECKING SetupEnv.bat LOCATION =======
           dir "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat"
-          # ... (optional handling) ...
 
           echo ======= CALLING WRAPPER SCRIPT =======
           call Scripts\ed.bat
