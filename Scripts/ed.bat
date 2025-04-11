@@ -5,7 +5,11 @@ echo ===== ENTERPRISE DEVELOPER ENVIRONMENT SETUP =====
 echo Input parameter: %1  
 
 echo Calling environment setup...  
-call Scripts\env.bat  
+set "setupPath=C:\PROGRA~2\Micro Focus\Enterprise Developer\SetupEnv.bat"  
+
+echo Calling SetupEnv.bat using: %setupPath% 32  
+call "%setupPath%" 32
+
 echo Setup completed with return code: %ERRORLEVEL%  
 
 if defined COBDIR (  
