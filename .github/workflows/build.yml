@@ -1,343 +1,228 @@
-name: COBOL Compilation and Deployment  
+name: COBOL Compilation and Deployment
 
-on:  
-  pull_request:  
-    types: [closed]  
-    branches:  
-      - main  
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
       - release-c
       - release-f
       - release-p
 
-jobs:  
-  COBOL-Compilation:  
-    # Only run if the PR was merged  
+jobs:
+  COBOL-Compilation:
     if: github.event.pull_request.merged == true
-    runs-on: self-hosted
-    
-    steps:  
-      - name: Check out repository code  
-        uses: actions/checkout@v3  
-        with:  
-          fetch-depth: 0  
-          
-      - name: Get modified files from PR  
-        id: changes  
-        shell: pwsh  
-        run: |  
-          $baseSha = "${{ github.event.pull_request.base.sha }}"  
-          $headSha = "${{ github.event.pull_request.head.sha }}"  
-          
-          # Get changed files with extension filtering  
-          $changedFilesToCompile = git diff --name-only --diff-filter=ACMRT $baseSha $headSha | Where-Object { $_ -match '\.(CBL|cbl|cpy|CPY|bms|BMS)$' }  
-          $bmsFilesToCompile = $changedFilesToCompile | Where-Object { $_ -match '\.(bms|BMS)$' }  
-          $cpyFilesToCompile = $changedFilesToCompile | Where-Object { $_ -match '\.(cpy|CPY)$' }  
-          $cblFilesToCompile = $changedFilesToCompile | Where-Object { $_ -match '\.(cbl|CBL)$' }  
-          
-          Write-Host "Files to compile:"  
-          Write-Host "BMS files: $($bmsFilesToCompile -join ', ')"  
-          Write-Host "CPY files: $($cpyFilesToCompile -join ', ')"  
-          Write-Host "CBL files: $($cblFilesToCompile -join ', ')"  
-          
-          # Set environment variables for file lists  
-          if ($bmsFilesToCompile) {  
-            echo "bms_files=$($bmsFilesToCompile -join ';')" >> $env:GITHUB_ENV  
-            echo "bms=y" >> $env:GITHUB_ENV  
-          } else {  
-            echo "bms=n" >> $env:GITHUB_ENV  
-          }  
-          
-          if ($cpyFilesToCompile) {  
-            echo "cpy_files=$($cpyFilesToCompile -join ';')" >> $env:GITHUB_ENV  
-            echo "cpy=y" >> $env:GITHUB_ENV  
-          } else {  
-            echo "cpy=n" >> $env:GITHUB_ENV  
-          }  
-          
-          if ($cblFilesToCompile) {  
-            echo "cbl_files=$($cblFilesToCompile -join ';')" >> $env:GITHUB_ENV  
-            echo "cbl=y" >> $env:GITHUB_ENV  
-          } else {  
-            echo "cbl=n" >> $env:GITHUB_ENV  
-          }  
+    runs-on: self-hosted 
 
-      - name: Setup Environment Based on Target Branch  
-        id: env_setup  
-        shell: pwsh  
-        run: |  
-          # Get target branch of the PR  
-          $targetBranch = "${{ github.event.pull_request.base.ref }}"  
-          Write-Host "Target branch: $targetBranch"  
-          
-          # Set environment name based on branch  
-          switch ($targetBranch) {  
-            "main" {  
-              $envName = "SHARED"  
-            }  
-            "release-c" {  
-              $envName = "CICSTSTQ"  
-            }  
-            "release-f" {  
-              $envName = "CICSTSTG"  
-            }  
-            "release-p" {  
-              $envName = "CICSWCS2"  
-            }  
-            default {  
-              $envName = "CICSTSTQ"  
-            }  
-          }  
-          
-          # Set  script path (already exists)  
-          $scriptPath = "${{ github.workspace }}\Scripts\build.bat"  
-          echo "ENV_NAME=$envName" >> $env:GITHUB_ENV  
-          echo "TARGET_BRANCH=$targetBranch" >> $env:GITHUB_ENV  
-          echo "BUILD_SCRIPT=$scriptPath" >> $env:GITHUB_ENV  
-          
-          # Set build tag using git commit info  
-          $buildTag = git log -1 --format='%h--%ad' --date=format-local:'%Y-%m-%d-%H%M%S'  
-          echo "BUILD_TAG=$buildTag" >> $env:GITHUB_ENV  
-          
-          # Set source and target directories  
-          $basePath = "C:\Build\Rehost"  
-          $buildBase = "C:\Build\Rehost"  
-          $sourceBase = "C:\Build\Rehost"  
-          
-          echo "BASE_PATH=$basePath" >> $env:GITHUB_ENV  
-          echo "BUILD_BASE=$buildBase" >> $env:GITHUB_ENV  
-          echo "SOURCE_BASE=$sourceBase" >> $env:GITHUB_ENV  
-          echo "CBL_DIR=$sourceBase" >> $env:GITHUB_ENV  
-          echo "BMS_DIR=$sourceBase" >> $env:GITHUB_ENV  
-          echo "CPY_DIR=$sourceBase" >> $env:GITHUB_ENV  
-          echo "BMS_CPY=$sourceBase" >> $env:GITHUB_ENV  
-          
-          # Display configuration  
-          Write-Host "Environment: $envName (from branch: $targetBranch)"  
-          Write-Host "Build Tag: $buildTag"  
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      - name: Set Permissions  
-        shell: cmd  
-        run: |  
-          REM Grant permissions to the script  
-          icacls "%BUILD_SCRIPT%" /grant:r "Everyone:(RX)"  
-          
-          REM Create directories and set permissions  
-          mkdir "C:\Build\Rehost" 2>nul  
-          mkdir "C:\Build\Rehost\loadlib" 2>nul  
-          mkdir "C:\Build\Rehost\listing" 2>nul            
-          mkdir "C:\Temp\logs" 2>nul  
-          mkdir "C:\ES" 2>nul  
-          mkdir "C:\ES\%ENV_NAME%" 2>nul  
-          mkdir "C:\ES\%ENV_NAME%\LOADLIB" 2>nul  
-          mkdir "C:\ES\SHARED" 2>nul  
-          mkdir "C:\ES\SHARED\DIRECTIVES" 2>nul  
-          
-          REM Set permissions for all directories  
-          icacls "C:\Build\Rehost" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\Build\Rehost\loadlib" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\Build\Rehost\listing" /grant:r "Everyone:(OI)(CI)F"            
-          icacls "C:\Temp\logs" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES\%ENV_NAME%" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES\%ENV_NAME%\LOADLIB" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES\SHARED" /grant:r "Everyone:(OI)(CI)F"  
-          icacls "C:\ES\SHARED\DIRECTIVES" /grant:r "Everyone:(OI)(CI)F"  
-          
-          REM Create default directive file if it doesn't exist  
-          if not exist "C:\ES\SHARED\DIRECTIVES\CBL.dir" (  
-            echo sourcetabs > "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
-            echo cicsecm(int) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
-            echo charset(ascii) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
-            echo dialect(mf) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
-            echo anim >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"  
+      - name: Get modified files from PR
+        id: changes
+        shell: pwsh
+        run: |
+          $baseSha = "${{ github.event.pull_request.base.sha }}"
+          $headSha = "${{ github.event.pull_request.head.sha }}"
+          $changedFilesToCompile = git diff --name-only --diff-filter=ACMRT $baseSha $headSha | Where-Object { $_ -match '\.(CBL|cbl|cpy|CPY|bms|BMS)$' }
+          $bmsFilesToCompile = $changedFilesToCompile | Where-Object { $_ -match '\.(bms|BMS)$' }
+          $cpyFilesToCompile = $changedFilesToCompile | Where-Object { $_ -match '\.(cpy|CPY)$' }
+          $cblFilesToCompile = $changedFilesToCompile | Where-Object { $_ -match '\.(cbl|CBL)$' }
+          Write-Host "Files to compile:"
+          Write-Host "BMS files: $($bmsFilesToCompile -join ', ')"
+          Write-Host "CPY files: $($cpyFilesToCompile -join ', ')"
+          Write-Host "CBL files: $($cblFilesToCompile -join ', ')"
+          if ($bmsFilesToCompile) { echo "bms_files=$($bmsFilesToCompile -join ';')" >> $env:GITHUB_ENV; echo "bms=y" >> $env:GITHUB_ENV } else { echo "bms=n" >> $env:GITHUB_ENV }
+          if ($cpyFilesToCompile) { echo "cpy_files=$($cpyFilesToCompile -join ';')" >> $env:GITHUB_ENV; echo "cpy=y" >> $env:GITHUB_ENV } else { echo "cpy=n" >> $env:GITHUB_ENV }
+          if ($cblFilesToCompile) { echo "cbl_files=$($cblFilesToCompile -join ';')" >> $env:GITHUB_ENV; echo "cbl=y" >> $env:GITHUB_ENV } else { echo "cbl=n" >> $env:GITHUB_ENV }
+
+      - name: Setup Environment Based on Target Branch
+        id: env_setup
+        shell: pwsh
+        run: |
+          $targetBranch = "${{ github.event.pull_request.base.ref }}"
+          Write-Host "Target branch: $targetBranch"
+          switch ($targetBranch) { "main" { $envName = "SHARED" }; "release-c" { $envName = "CICSTSTQ" }; "release-f" { $envName = "CICSTSTG" }; "release-p" { $envName = "CICSWCS2" }; default { $envName = "CICSTSTQ" } }
+          $scriptPath = "${{ github.workspace }}\Scripts\build.bat"
+          echo "ENV_NAME=$envName" >> $env:GITHUB_ENV
+          echo "TARGET_BRANCH=$targetBranch" >> $env:GITHUB_ENV
+          echo "BUILD_SCRIPT=$scriptPath" >> $env:GITHUB_ENV
+          $buildTag = git log -1 --format='%h--%ad' --date=format-local:'%Y-%m-%d-%H%M%S'
+          echo "BUILD_TAG=$buildTag" >> $env:GITHUB_ENV
+          $basePath = "C:\Build\Rehost"; $buildBase = "C:\Build\Rehost"; $sourceBase = "C:\Build\Rehost"
+          echo "BASE_PATH=$basePath" >> $env:GITHUB_ENV; echo "BUILD_BASE=$buildBase" >> $env:GITHUB_ENV; echo "SOURCE_BASE=$sourceBase" >> $env:GITHUB_ENV
+          echo "CBL_DIR=$sourceBase" >> $env:GITHUB_ENV; echo "BMS_DIR=$sourceBase" >> $env:GITHUB_ENV; echo "CPY_DIR=$sourceBase" >> $env:GITHUB_ENV; echo "BMS_CPY=$sourceBase" >> $env:GITHUB_ENV
+          Write-Host "Environment: $envName (from branch: $targetBranch)"
+          Write-Host "Build Tag: $buildTag"
+
+      - name: Setup Micro Focus Environment using robust script
+        id: mf_env_setup
+        shell: cmd
+        run: |
+          echo ======= CALLING ROBUST WRAPPER SCRIPT (ed.bat) =======
+          IF NOT EXIST "Scripts\ed.bat" (
+             echo ERROR: Robust ed.bat script not found at Scripts\ed.bat
+             exit /b 1
           )
-          
-      - name: Copy Source Files to Build Directory  
-        id: copy_source  
-        shell: pwsh  
-        run: |  
-          # Create target directories if they don't exist  
-          $directories = @(  
-            "${{ env.CBL_DIR }}",  
-            "${{ env.BMS_DIR }}",  
-            "${{ env.CPY_DIR }}",  
-            "${{ env.BMS_CPY }}"  
-          )  
-          foreach ($dir in $directories) {  
-            if (-not (Test-Path $dir)) {   
-              New-Item -Path $dir -ItemType Directory -Force  
-              Write-Host "Created directory: $dir"  
-            }  
-          }  
-          
-          # Copy BMS files  
-          if ("$env:bms" -eq "y") {  
-            foreach ($file in ("$env:bms_files" -split ";")) {  
-              $filename = Split-Path $file -Leaf  
-              Copy-Item "${{ github.workspace }}/$file" -Destination "${{ env.BMS_DIR }}/$filename" -Force  
-              Write-Host "Copied BMS file: $file to ${{ env.BMS_DIR }}/$filename"  
-            }  
-          }  
-          
-          # Copy CPY files  
-          if ("$env:cpy" -eq "y") {  
-            foreach ($file in ("$env:cpy_files" -split ";")) {  
-              $filename = Split-Path $file -Leaf  
-              Copy-Item "${{ github.workspace }}/$file" -Destination "${{ env.CPY_DIR }}/$filename" -Force  
-              Write-Host "Copied CPY file: $file to ${{ env.CPY_DIR }}/$filename"  
-            }  
-          }  
-          
-          # Copy COBOL files  
-          if ("$env:cbl" -eq "y") {  
-            foreach ($file in ("$env:cbl_files" -split ";")) {  
-              $filename = Split-Path $file -Leaf  
-              Copy-Item "${{ github.workspace }}/$file" -Destination "${{ env.CBL_DIR }}/$filename" -Force  
-              Write-Host "Copied COBOL file: $file to ${{ env.CBL_DIR }}/$filename"  
-            }  
-          }  
+          call Scripts\ed.bat
+          set SCRIPT_EXIT_CODE=%ERRORLEVEL%
+          echo ======= WRAPPER SCRIPT FINISHED (Exit Code: %SCRIPT_EXIT_CODE%) =======
+          if %SCRIPT_EXIT_CODE% NEQ 0 (
+            echo ERROR: Robust ed.bat failed with exit code %SCRIPT_EXIT_CODE%.
+            exit /b %SCRIPT_EXIT_CODE%
+          )
+          echo Micro Focus environment setup successfully. COBDIR exported to GITHUB_ENV.
 
-      - name: Create Environment Setup Wrapper  
-        shell: cmd  
-        run: |  
-          echo @echo off > setup_env.bat  
-          echo setlocal enabledelayedexpansion >> setup_env.bat  
-          echo set "MF_ROOT=%%ProgramFiles(x86)%%\Micro Focus\Enterprise Developer" >> setup_env.bat  
-          echo echo Setting up Enterprise Developer environment... >> setup_env.bat  
-          echo call "!MF_ROOT!\SetupEnv.bat" 32 >> setup_env.bat  
-          echo echo COBDIR=!COBDIR! >> setup_env.bat 
-          
-      - name: Compile Modified Files  
-        id: build  
-        shell: cmd  
-        run: |  
-          @echo off  
-          setlocal enabledelayedexpansion  
-                   
-          echo ======= STARTING COMPILATION =======  
+      - name: Set Permissions
+        shell: cmd
+        run: |
+          REM Grant permissions to the build script
+          icacls "%BUILD_SCRIPT%" /grant:r "Everyone:(RX)"
 
-          echo Running environment setup first...  
-          call setup_env.bat
-          
-          echo Starting compilation of modified files for environment: %ENV_NAME%            
-          set compilation_exit_code=0  
-          
-          :: Compile BMS files first if any  
-          if "%bms%" == "y" (  
-            for /F "usebackq delims=" %%f in (`powershell -Command "$env:bms_files -split ';'"`) do (  
-              set "fullpath=%%f"  
-              for %%F in ("!fullpath!") do (  
-                set "filename=%%~nF"  
-                echo Compiling BMS file: !filename!  
-                call "%BUILD_SCRIPT%" BMS !filename! %ENV_NAME%  
-                if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!  
-              )  
-            )  
-          )  
-          
-          :: Compile COBOL files  
-          if "%cbl%" == "y" (  
-            for /F "usebackq delims=" %%f in (`powershell -Command "$env:cbl_files -split ';'"`) do (  
-              set "fullpath=%%f"  
-              for %%F in ("!fullpath!") do (  
-                set "filename=%%~nF"  
-                echo Compiling COBOL file: !filename!  
-                echo ===== DEBUG INFO =====  
-                echo BUILD_SCRIPT: %BUILD_SCRIPT%  
-                echo Module type: CBL  
-                echo Module name: !filename!  
-                echo Environment: %ENV_NAME%  
-                echo Current directory: %CD%  
-                echo ===== END DEBUG INFO =====  
-                
-                call "%BUILD_SCRIPT%" CBL !filename! %ENV_NAME%  
-                if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!  
-              )  
-            )  
-          )  
-          
-          echo compilation_exit_code=%compilation_exit_code% >> %GITHUB_ENV%  
-          echo Compilation completed with exit code: %compilation_exit_code%
+          REM Create directories and set permissions
+          mkdir "C:\Build\Rehost" 2>nul
+          mkdir "C:\Build\Rehost\loadlib" 2>nul
+          mkdir "C:\Build\Rehost\listing" 2>nul
+          mkdir "C:\Temp\logs" 2>nul
+          mkdir "C:\ES" 2>nul
+          mkdir "C:\ES\%ENV_NAME%" 2>nul
+          mkdir "C:\ES\%ENV_NAME%\LOADLIB" 2>nul
+          mkdir "C:\ES\SHARED" 2>nul
+          mkdir "C:\ES\SHARED\DIRECTIVES" 2>nul
 
-      - name: Create Artifact  
-        id: artifact_prep  
-        if: env.compilation_exit_code == '0'  
-        shell: pwsh  
-        run: |  
-          $artifactPath = "${{ env.BUILD_BASE }}\artifact-${{ env.ENV_NAME }}-${{ env.BUILD_TAG }}"  
-          
-          # Create artifact directories  
-          New-Item -Path "$artifactPath" -ItemType Directory -Force  
-          New-Item -Path "$artifactPath\source" -ItemType Directory -Force  
-          New-Item -Path "$artifactPath\loadlib" -ItemType Directory -Force  
-          New-Item -Path "$artifactPath\logs" -ItemType Directory -Force  
-          
-          # Copy source files to artifact  
-          if ("$env:bms" -eq "y") {  
-            foreach ($file in ("$env:bms_files" -split ";")) {  
-              $filename = Split-Path $file -Leaf  
-              Copy-Item "${{ github.workspace }}/$file" -Destination "$artifactPath\source\$filename" -Force  
-            }  
-          }  
-          
-          if ("$env:cbl" -eq "y") {  
-            foreach ($file in ("$env:cbl_files" -split ";")) {  
-              $filename = Split-Path $file -Leaf  
-              Copy-Item "${{ github.workspace }}/$file" -Destination "$artifactPath\source\$filename" -Force  
-            }  
-          }  
-          
-          # Copy latest log file from C:\Temp\logs  
-          $logPath = "C:\Temp\logs"  
-          if (Test-Path $logPath) {  
-            Get-ChildItem $logPath -Filter "Compile_*_*.log" |   
-              Sort-Object LastWriteTime -Descending |   
-              Select-Object -First 1 |   
-              Copy-Item -Destination "$artifactPath\logs\" -Force  
-          }  
-          
-          # Copy compiled files  
-          if ("$env:bms" -eq "y") {  
-            foreach ($file in ("$env:bms_files" -split ";")) {  
-              $basename = [System.IO.Path]::GetFileNameWithoutExtension($file)  
-              $modFile = "${{ env.BUILD_BASE }}\loadlib\$basename.MOD"  
-              if (Test-Path $modFile) {  
-                Copy-Item $modFile -Destination "$artifactPath\loadlib\" -Force  
-              }  
-            }  
-          }  
-          
-          if ("$env:cbl" -eq "y") {  
-            foreach ($file in ("$env:cbl_files" -split ";")) {  
-              $basename = [System.IO.Path]::GetFileNameWithoutExtension($file)  
-              $gntFile = "${{ env.BUILD_BASE }}\loadlib\$basename.gnt"  
-              $idyFile = "${{ env.BUILD_BASE }}\loadlib\$basename.idy"  
-              $bndFile = "${{ env.BUILD_BASE }}\loadlib\$basename.bnd"  
-              
-              if (Test-Path $gntFile) { Copy-Item $gntFile -Destination "$artifactPath\loadlib\" -Force }  
-              if (Test-Path $idyFile) { Copy-Item $idyFile -Destination "$artifactPath\loadlib\" -Force }  
-              if (Test-Path $bndFile) { Copy-Item $bndFile -Destination "$artifactPath\loadlib\" -Force }  
-            }  
-          }  
-          
-          echo "artifact_path=$artifactPath" >> $env:GITHUB_ENV  
+          REM Set permissions for all directories
+          icacls "C:\Build\Rehost" /grant:r "Everyone:(OI)(CI)F"
+          icacls "C:\Build\Rehost\loadlib" /grant:r "Everyone:(OI)(CI)F"
+          icacls "C:\Build\Rehost\listing" /grant:r "Everyone:(OI)(CI)F"
+          icacls "C:\Temp\logs" /grant:r "Everyone:(OI)(CI)F"
+          icacls "C:\ES" /grant:r "Everyone:(OI)(CI)F"
+          icacls "C:\ES\%ENV_NAME%" /grant:r "Everyone:(OI)(CI)F"
+          icacls "C:\ES\%ENV_NAME%\LOADLIB" /grant:r "Everyone:(OI)(CI)F"
+          icacls "C:\ES\SHARED" /grant:r "Everyone:(OI)(CI)F"
+          icacls "C:\ES\SHARED\DIRECTIVES" /grant:r "Everyone:(OI)(CI)F"
 
-      - name: Upload Artifact  
-        if: env.compilation_exit_code == '0'  
-        uses: actions/upload-artifact@v4  
-        with:  
-          name: ${{ env.ENV_NAME }}-${{ env.BUILD_TAG }}  
-          path: ${{ env.artifact_path }}  
+          REM Create default directive file if it doesn't exist
+          if not exist "C:\ES\SHARED\DIRECTIVES\CBL.dir" (
+            echo sourcetabs > "C:\ES\SHARED\DIRECTIVES\CBL.dir"
+            echo cicsecm(int) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"
+            echo charset(ascii) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"
+            echo dialect(mf) >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"
+            echo anim >> "C:\ES\SHARED\DIRECTIVES\CBL.dir"
+          )
 
-      - name: Report Results  
-        run: |  
-          Write-Host "Compilation job results:"  
-          Write-Host "Target Branch: ${{ env.TARGET_BRANCH }}"  
-          Write-Host "Environment: ${{ env.ENV_NAME }}"  
-          Write-Host "Build Tag: ${{ env.BUILD_TAG }}"  
-          
-          if ("${{ env.compilation_exit_code }}" -eq "0") {  
-            Write-Host "✅ Compilation completed successfully"  
-          } else {  
-            Write-Host "❌ Compilation failed with exit code ${{ env.compilation_exit_code }}"  
+      - name: Copy Source Files to Build Directory
+        id: copy_source
+        shell: pwsh
+        run: |
+          $directories = @("${{ env.CBL_DIR }}","${{ env.BMS_DIR }}","${{ env.CPY_DIR }}","${{ env.BMS_CPY }}")
+          foreach ($dir in $directories) { if (-not (Test-Path $dir)) { New-Item -Path $dir -ItemType Directory -Force; Write-Host "Created directory: $dir" } }
+          if ("$env:bms" -eq "y") { foreach ($file in ("$env:bms_files" -split ";")) { $filename = Split-Path $file -Leaf; Copy-Item "${{ github.workspace }}/$file" -Destination "${{ env.BMS_DIR }}/$filename" -Force; Write-Host "Copied BMS file: $file to ${{ env.BMS_DIR }}/$filename" } }
+          if ("$env:cpy" -eq "y") { foreach ($file in ("$env:cpy_files" -split ";")) { $filename = Split-Path $file -Leaf; Copy-Item "${{ github.workspace }}/$file" -Destination "${{ env.CPY_DIR }}/$filename" -Force; Write-Host "Copied CPY file: $file to ${{ env.CPY_DIR }}/$filename" } }
+          if ("$env:cbl" -eq "y") { foreach ($file in ("$env:cbl_files" -split ";")) { $filename = Split-Path $file -Leaf; Copy-Item "${{ github.workspace }}/$file" -Destination "${{ env.CBL_DIR }}/$filename" -Force; Write-Host "Copied COBOL file: $file to ${{ env.CBL_DIR }}/$filename" } }
+
+      - name: Compile Modified Files
+        id: build
+        shell: cmd
+        run: |
+          @echo off
+          setlocal enabledelayedexpansion 
+
+          echo ======= STARTING COMPILATION =======
+          echo Verifying COBDIR before compilation loop...
+          if defined COBDIR (
+            echo COBDIR is defined: "%COBDIR%"
+          ) else (
+            echo ERROR: COBDIR is NOT defined before compilation loop! Environment setup failed or GITHUB_ENV propagation issue.
+            exit /b 1
+          )
+          rem echo PATH=%PATH%
+
+          echo Starting compilation of modified files for environment: %ENV_NAME%
+          set compilation_exit_code=0
+
+          :: Compile BMS files first if any
+          if "%bms%" == "y" (
+            for /F "usebackq delims=" %%f in (`powershell -Command "$env:bms_files -split ';'"`) do (
+              set "fullpath=%%f"
+              rem Use delayed expansion for filename extraction within loop
+              for %%F in ("!fullpath!") do (
+                set "filename=%%~nF"
+                echo Compiling BMS file: !filename!
+                rem BUILD_SCRIPT and ENV_NAME come from GITHUB_ENV
+                call "%BUILD_SCRIPT%" BMS !filename! %ENV_NAME%
+                if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
+              )
+            )
+          )
+
+          :: Compile COBOL files
+          if "%cbl%" == "y" (
+            for /F "usebackq delims=" %%f in (`powershell -Command "$env:cbl_files -split ';'"`) do (
+              set "fullpath=%%f"
+              for %%F in ("!fullpath!") do (
+                set "filename=%%~nF"
+                echo Compiling COBOL file: !filename!
+                rem --- DEBUG INFO ---
+                echo BUILD_SCRIPT: %BUILD_SCRIPT%
+                echo Module type: CBL
+                echo Module name: !filename!
+                echo Environment: %ENV_NAME%
+                echo Current directory: %CD%
+                rem --- END DEBUG INFO ---
+
+                call "%BUILD_SCRIPT%" CBL !filename! %ENV_NAME%
+                if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
+              )
+            )
+          )
+
+          rem Export result
+          echo compilation_exit_code=!compilation_exit_code! >> "%GITHUB_ENV%"
+          echo Compilation completed with intermediate exit code: !compilation_exit_code!
+          exit /b !compilation_exit_code! # Exit step with the compilation code
+
+      - name: Create Artifact
+        id: artifact_prep
+        if: success() # Simplified condition: run if previous steps succeeded
+
+        shell: pwsh
+        run: |
+          if ("$env:compilation_exit_code" -ne "0") {
+              Write-Host "Skipping artifact creation due to compilation failure (Exit Code: $env:compilation_exit_code)."
+              exit 0 # Exit step cleanly, but don't create artifact
+          }
+          Write-Host "Compilation successful. Creating artifact..."
+          $artifactPath = "${{ env.BUILD_BASE }}\artifact-${{ env.ENV_NAME }}-${{ env.BUILD_TAG }}"
+          New-Item -Path "$artifactPath" -ItemType Directory -Force; New-Item -Path "$artifactPath\source" -ItemType Directory -Force; New-Item -Path "$artifactPath\loadlib" -ItemType Directory -Force; New-Item -Path "$artifactPath\logs" -ItemType Directory -Force
+          if ("$env:bms" -eq "y") { foreach ($file in ("$env:bms_files" -split ";")) { $filename = Split-Path $file -Leaf; Copy-Item "${{ github.workspace }}/$file" -Destination "$artifactPath\source\$filename" -Force } }
+          if ("$env:cbl" -eq "y") { foreach ($file in ("$env:cbl_files" -split ";")) { $filename = Split-Path $file -Leaf; Copy-Item "${{ github.workspace }}/$file" -Destination "$artifactPath\source\$filename" -Force } }
+          $logPath = "C:\Temp\logs"; if (Test-Path $logPath) { Get-ChildItem $logPath -Filter "Compile_*_*.log" | Sort-Object LastWriteTime -Descending | Select-Object -First 1 | Copy-Item -Destination "$artifactPath\logs\" -Force }
+          if ("$env:bms" -eq "y") { foreach ($file in ("$env:bms_files" -split ";")) { $basename = [System.IO.Path]::GetFileNameWithoutExtension($file); $modFile = "${{ env.BUILD_BASE }}\loadlib\$basename.MOD"; if (Test-Path $modFile) { Copy-Item $modFile -Destination "$artifactPath\loadlib\" -Force } } }
+          if ("$env:cbl" -eq "y") { foreach ($file in ("$env:cbl_files" -split ";")) { $basename = [System.IO.Path]::GetFileNameWithoutExtension($file); $gntFile = "${{ env.BUILD_BASE }}\loadlib\$basename.gnt"; $idyFile = "${{ env.BUILD_BASE }}\loadlib\$basename.idy"; $bndFile = "${{ env.BUILD_BASE }}\loadlib\$basename.bnd"; if (Test-Path $gntFile) { Copy-Item $gntFile -Destination "$artifactPath\loadlib\" -Force }; if (Test-Path $idyFile) { Copy-Item $idyFile -Destination "$artifactPath\loadlib\" -Force }; if (Test-Path $bndFile) { Copy-Item $bndFile -Destination "$artifactPath\loadlib\" -Force } } }
+          echo "artifact_path=$artifactPath" >> $env:GITHUB_ENV
+
+      - name: Upload Artifact
+        if: success() && env.compilation_exit_code == '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ENV_NAME }}-${{ env.BUILD_TAG }}
+          path: ${{ env.artifact_path }} # This relies on artifact_path being set in the previous step
+
+      - name: Report Results
+        if: always()
+        shell: pwsh # Use PowerShell for consistency in reporting
+        run: |
+          Write-Host "Compilation job results:"
+          Write-Host "Target Branch: ${{ env.TARGET_BRANCH }}"
+          Write-Host "Environment: ${{ env.ENV_NAME }}"
+          Write-Host "Build Tag: ${{ env.BUILD_TAG }}"
+          # Check the compilation_exit_code set via GITHUB_ENV
+          if ("$env:compilation_exit_code" -eq "0") {
+            Write-Host "✅ Compilation completed successfully"
+          } else {
+            Write-Host "❌ Compilation failed with exit code $($env:compilation_exit_code)"
+            # Optionally force the workflow to fail if compilation failed
+            exit 1
           }
