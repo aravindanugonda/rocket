@@ -28,7 +28,7 @@ set bms_dir=%source_base%
 REM Input Parameters
 set modtype=%1
 set modname=%2
-if "%3"=="" ( set target_env=CICSTSTQ ) else ( set target_env=%3 )
+if "%3"=="" ( set target_env=SHARED ) else ( set target_env=%3 )
 set execpath=C:\ES\%target_env%\LOADLIB
 set BYPASSCBL="XXXXXXXX"
 
@@ -90,48 +90,59 @@ if not exist "!execpath!" mkdir "!execpath!" 2>nul
 echo DEBUG: Finished ensuring directories (errors ignored).
 
 REM =====================================================================
-REM === SECTION 3: COMPILATION LOGIC (Reset ERRLEVEL, Use GOTO)     ===
+REM === SECTION 3: COMPILATION LOGIC (Isolate '#' Error)            ===
 REM =====================================================================
 :COMPILE
 rem --- Ensure log directory exists RIGHT before first write ---
-echo DEBUG: Final check for log directory: "!logdir!"
-if not exist "!logdir!" mkdir "!logdir!" 2>nul # Try creating again just in case
-rem Final check - Abort if log dir is unusable
+echo DEBUG: Ensuring log directory exists: "!logdir!"
+if not exist "!logdir!" mkdir "!logdir!" 2>nul
 if not exist "!logdir!" (
-  echo ERROR: Failed to create or find log directory: !logdir! Cannot proceed.
+  echo ERROR: Failed to create log directory: !logdir! Cannot proceed.
   exit /b 96
 ) else (
   echo DEBUG: Log directory confirmed.
 )
 
-rem --- Test simple redirection with explicit errorlevel reset and check ---
-echo DEBUG: Testing simple redirection to logfile...
-(call ) # Reset ERRORLEVEL to 0
+rem --- Test simple redirection ---
+echo DEBUG: Testing simple redirection to logfile... (Before '(call )')
+
+rem *** STEP 1: Reset errorlevel ***
+(call )
+echo DEBUG: After '(call )' command.
+
+rem *** STEP 2: Execute redirection ***
 echo Test Line > "!logfile!"
-set ECHO_RC=!ERRORLEVEL! # Capture ERRORLEVEL explicitly
-echo DEBUG: Simple redirection command completed. Captured ERRORLEVEL = !ECHO_RC!
+echo DEBUG: After 'echo Test Line > "!logfile!"' command.
+
+rem *** STEP 3: Capture errorlevel ***
+set ECHO_RC=!ERRORLEVEL!
+echo DEBUG: After 'set ECHO_RC=!ERRORLEVEL!'. Captured ERRORLEVEL = !ECHO_RC!
+
 rem --- Check the CAPTURED errorlevel using GOTO ---
-if !ECHO_RC! EQU 0 goto RedirectionOk
+if !ECHO_RC! EQU 0 goto RedirectionOk_V2 # Use new label
 rem --- This runs only if ECHO_RC is NOT 0 ---
 echo ERROR: Simple redirection '>' failed! Captured RC = !ECHO_RC!. Check path/permissions for !logfile!
 exit /b 95
 
-:RedirectionOk
+:RedirectionOk_V2
 echo DEBUG: Simple redirection '>' seems OK (RC = !ECHO_RC!).
 
-rem --- Now try the first actual log append with explicit errorlevel reset and check ---
-echo DEBUG: Attempting first append redirection '>>' to logfile...
+rem --- Now try the actual log append ---
+echo DEBUG: Attempting first append redirection '>>' to logfile... (Before '(call )')
 (call ) # Reset ERRORLEVEL to 0
+echo DEBUG: After '(call )' for append test.
 echo =================================================================== >> "!logfile!"
+echo DEBUG: After 'echo === >> "!logfile!"'.
 set APPEND_RC=!ERRORLEVEL! # Capture ERRORLEVEL explicitly
 echo DEBUG: First append redirection command completed. Captured ERRORLEVEL = !APPEND_RC!
+
 rem --- Check the CAPTURED errorlevel using GOTO ---
-if !APPEND_RC! EQU 0 goto AppendOk
+if !APPEND_RC! EQU 0 goto AppendOk_V2 # Use new label
 rem --- This runs only if APPEND_RC is NOT 0 ---
 echo ERROR: First append redirection '>>' failed! Captured RC = !APPEND_RC!. Potential syntax error or permission issue.
 exit /b 255
 
-:AppendOk
+:AppendOk_V2
 echo DEBUG: First append redirection '>>' seems OK (RC = !APPEND_RC!).
 
 rem --- If we get here, logging setup is okay. Continue logging. ---
@@ -139,28 +150,18 @@ echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment >> "
 echo =================================================================== >> "!logfile!"
 echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment # Console Echo
 
-rem --- Use GOTO for dispatch to avoid IF/ELSE IF/ELSE syntax issues ---
+rem --- Use GOTO for dispatch ---
 echo DEBUG: Dispatching based on modtype '!modtype!'...
 if /i "!modtype!"=="BMS" goto CallCompileBMS
 if /i "!modtype!"=="CBL" goto CallCompileCBL
 
 rem --- Handle Invalid Type ---
-echo ERROR: Invalid module type specified: !modtype! >> "!logfile!"
-echo ERROR: Invalid module type specified: !modtype!
-echo Valid types are BMS or CBL
-exit /b 12
+echo ERROR: Invalid module type specified: !modtype! >> "!logfile!" & echo ERROR: Invalid module type specified: !modtype! & exit /b 12
 
 :CallCompileBMS
-echo DEBUG: Jumping to :COMPILE_BMS...
-call :COMPILE_BMS
-set "_rc=!errorlevel!" # Capture RC from subroutine call
-goto :EXIT
-
+echo DEBUG: Jumping to :COMPILE_BMS... & call :COMPILE_BMS & set "_rc=!errorlevel!" & goto :EXIT
 :CallCompileCBL
-echo DEBUG: Jumping to :COMPILE_COBOL...
-call :COMPILE_COBOL
-set "_rc=!errorlevel!" # Capture RC from subroutine call
-goto :EXIT
+echo DEBUG: Jumping to :COMPILE_COBOL... & call :COMPILE_COBOL & set "_rc=!errorlevel!" & goto :EXIT
 
 REM =====================================================================
 REM === SECTION 4: BMS COMPILATION (Using !var! and !_sub_rc!)      ===
