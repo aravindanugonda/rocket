@@ -6,10 +6,12 @@ rem Use the short (8.3) path for SetupEnv.bat to avoid issues.
 call "C:\PROGRA~2\Micro Focus\Enterprise Developer\SetupEnv.bat" 32  
 set RETCODE=%ERRORLEVEL%  
 
-rem Optionally remove any surrounding quotes from COBDIR  
 if defined COBDIR (  
   set "COBDIR=%COBDIR:"=%"  
-)  
+  if "%COBDIR:~-1%"==";" (  
+    set "COBDIR=%COBDIR:~0,-1%"  
+  )  
+) 
 
 echo Setup completed with return code: %RETCODE%  
 
