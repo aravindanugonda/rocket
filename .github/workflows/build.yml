@@ -143,7 +143,7 @@ jobs:
           if defined cbl ( echo cbl flag is defined: %cbl% ) else ( echo ERROR: cbl flag is NOT defined! & exit /b 1 )
 
           echo Starting compilation of modified files for environment: %ENV_NAME%
-          set compilation_exit_code=0 # Initialize overall code to success
+          set compilation_exit_code=0
 
           :: Compile BMS files first if any
           if /i "%bms%" NEQ "y" goto SkipBmsBlock_Compile
