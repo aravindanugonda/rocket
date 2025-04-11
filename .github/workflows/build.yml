@@ -10,7 +10,6 @@ on:
       - release-f
       - release-p
 
-  # --- NEW: Manual Trigger ---
   workflow_dispatch:
     inputs:
       # Define inputs for manual testing
@@ -27,7 +26,6 @@ on:
 
 jobs:
   COBOL-Compilation:
-    # --- MODIFIED: Run if PR merged OR if triggered manually ---
     if: (github.event_name == 'pull_request' && github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch'
     runs-on: self-hosted
 
@@ -38,7 +36,6 @@ jobs:
           # Fetch depth 0 needed for git diff between arbitrary commits
           fetch-depth: 0
 
-      # --- MODIFIED: Handle both PR and Manual Trigger ---
       - name: Get modified files
         id: changes
         shell: pwsh
@@ -83,7 +80,6 @@ jobs:
           if ($cpyFilesToCompile) { echo "cpy_files=$($cpyFilesToCompile -join ';')" >> $env:GITHUB_ENV; echo "cpy=y" >> $env:GITHUB_ENV } else { echo "cpy=n" >> $env:GITHUB_ENV; echo "cpy_files=" >> $env:GITHUB_ENV }
           if ($cblFilesToCompile) { echo "cbl_files=$($cblFilesToCompile -join ';')" >> $env:GITHUB_ENV; echo "cbl=y" >> $env:GITHUB_ENV } else { echo "cbl=n" >> $env:GITHUB_ENV; echo "cbl_files=" >> $env:GITHUB_ENV }
 
-      # --- MODIFIED: Handle both PR and Manual Trigger ---
       - name: Setup Environment Based on Target Branch
         id: env_setup
         shell: pwsh
@@ -129,7 +125,6 @@ jobs:
           Write-Host "Build Script: $scriptPath"
           Write-Host "Build Tag: $buildTag"
 
-      # --- UNCHANGED: Setup Micro Focus Environment using robust script ---
       # This step now runs reliably using ed.bat and exports vars via GITHUB_ENV
       - name: Setup Micro Focus Environment using robust script
         id: mf_env_setup
@@ -149,7 +144,6 @@ jobs:
           )
           echo Micro Focus environment setup successful. Variables exported to GITHUB_ENV.
 
-      # --- UNCHANGED: Set Permissions ---
       # This step uses %ENV_NAME% and %BUILD_SCRIPT% from GITHUB_ENV
       - name: Set Permissions
         shell: cmd
@@ -179,7 +173,6 @@ jobs:
             ( echo sourcetabs & echo cicsecm(int) & echo charset(ascii) & echo dialect(mf) & echo anim ) > "C:\ES\SHARED\DIRECTIVES\CBL.dir"
           ) else ( echo Default directive file exists. )
 
-      # --- UNCHANGED: Copy Source Files to Build Directory ---
       # This step uses $env: variables set via GITHUB_ENV
       - name: Copy Source Files to Build Directory
         id: copy_source
@@ -192,7 +185,6 @@ jobs:
           if ("${{ env.cpy }}" -eq "y") { foreach ($file in ("${{ env.cpy_files }}" -split ";")) { $sourcePath="${{ github.workspace }}/$file"; if(Test-Path $sourcePath){ $filename = Split-Path $file -Leaf; Copy-Item $sourcePath -Destination "${{ env.CPY_DIR }}/$filename" -Force; Write-Host "Copied CPY: $file to ${{ env.CPY_DIR }}/$filename" } else { Write-Warning "Source CPY not found: $sourcePath" } } }
           if ("${{ env.cbl }}" -eq "y") { foreach ($file in ("${{ env.cbl_files }}" -split ";")) { $sourcePath="${{ github.workspace }}/$file"; if(Test-Path $sourcePath){ $filename = Split-Path $file -Leaf; Copy-Item $sourcePath -Destination "${{ env.CBL_DIR }}/$filename" -Force; Write-Host "Copied CBL: $file to ${{ env.CBL_DIR }}/$filename" } else { Write-Warning "Source CBL not found: $sourcePath" } } }
 
-      # --- UNCHANGED: Compile Modified Files ---
       # This step uses %variables% set via GITHUB_ENV and calls the corrected build.bat
       - name: Compile Modified Files
         id: build
@@ -208,7 +200,7 @@ jobs:
           if defined BUILD_SCRIPT ( echo BUILD_SCRIPT is defined: %BUILD_SCRIPT% ) else ( echo ERROR: BUILD_SCRIPT is NOT defined! & exit /b 1 )
 
           echo Starting compilation of modified files for environment: %ENV_NAME%
-          set compilation_exit_code=0
+          set compilation_exit_code=0 # Initialize overall code to success
 
           :: Compile BMS files first if any
           if /i "%bms%" == "y" (
@@ -219,35 +211,40 @@ jobs:
                     set "filename=%%~nF"
                     echo Compiling BMS file: !filename!
                     call "%BUILD_SCRIPT%" BMS !filename! %ENV_NAME%
-                    if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
+                    rem Capture the first error code encountered
+                    if !compilation_exit_code! equ 0 if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
                   )
                 )
             ) else ( echo No BMS files listed despite bms=y flag. )
           ) else ( echo Skipping BMS compilation. )
 
-          :: Compile COBOL files
-          if /i "%cbl%" == "y" (
-            if not "%cbl_files%"=="" (
-                for /F "usebackq delims=" %%f in (`powershell -Command "$env:cbl_files -split ';'"`) do (
-                  set "fullpath=%%f"
-                  for %%F in ("!fullpath!") do (
-                    set "filename=%%~nF"
-                    echo Compiling COBOL file: !filename!
-                    call "%BUILD_SCRIPT%" CBL !filename! %ENV_NAME%
-                    if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
+          :: Compile COBOL files ONLY if previous steps were successful
+          if !compilation_exit_code! equ 0 (
+            if /i "%cbl%" == "y" (
+              if not "%cbl_files%"=="" (
+                  for /F "usebackq delims=" %%f in (`powershell -Command "$env:cbl_files -split ';'"`) do (
+                    set "fullpath=%%f"
+                    for %%F in ("!fullpath!") do (
+                      set "filename=%%~nF"
+                      echo Compiling COBOL file: !filename!
+                      call "%BUILD_SCRIPT%" CBL !filename! %ENV_NAME%
+                      rem Capture the first error code encountered
+                      if !compilation_exit_code! equ 0 if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
+                    )
                   )
-                )
-            ) else ( echo No COBOL files listed despite cbl=y flag. )
-          ) else ( echo Skipping COBOL compilation. )
+              ) else ( echo No COBOL files listed despite cbl=y flag. )
+            ) else ( echo Skipping COBOL compilation. )
+          ) else (
+            echo Skipping COBOL compilation due to previous BMS errors (Code: !compilation_exit_code!).
+          )
 
           :: Note: CPY files are generally not compiled directly but used via COBCPY
 
           rem Export result
           echo compilation_exit_code=!compilation_exit_code! >> "%GITHUB_ENV%"
-          echo Compilation step finished with intermediate exit code: !compilation_exit_code!
-          exit /b !compilation_exit_code! # Exit step with the overall compilation code for this step
-
-      # --- UNCHANGED: Create Artifact ---
+          echo Compilation step finished with overall exit code: !compilation_exit_code!
+          exit /b !compilation_exit_code! # Exit step with the first error encountered (or 0)
+          
       # Condition now uses GITHUB_ENV variable set in the previous step
       - name: Create Artifact
         id: artifact_prep
@@ -269,7 +266,6 @@ jobs:
           if ("${{ env.cbl }}" -eq "y") { foreach ($file in ("${{ env.cbl_files }}" -split ";")) { $basename = [System.IO.Path]::GetFileNameWithoutExtension($file); $gntFile = "${{ env.BUILD_BASE }}\loadlib\$basename.gnt"; $idyFile = "${{ env.BUILD_BASE }}\loadlib\$basename.idy"; $bndFile = "${{ env.BUILD_BASE }}\loadlib\$basename.bnd"; if (Test-Path $gntFile) { Copy-Item $gntFile -Destination "$artifactPath\loadlib\" -Force }; if (Test-Path $idyFile) { Copy-Item $idyFile -Destination "$artifactPath\loadlib\" -Force }; if (Test-Path $bndFile) { Copy-Item $bndFile -Destination "$artifactPath\loadlib\" -Force } } }
           echo "artifact_path=$artifactPath" >> $env:GITHUB_ENV
 
-      # --- UNCHANGED: Upload Artifact ---
       - name: Upload Artifact
         if: success() && env.compilation_exit_code == '0'
         uses: actions/upload-artifact@v4
@@ -277,7 +273,6 @@ jobs:
           name: ${{ env.ENV_NAME }}-${{ env.BUILD_TAG }}
           path: ${{ env.artifact_path }}
 
-      # --- UNCHANGED: Report Results ---
       - name: Report Results
         if: always()
         shell: pwsh
