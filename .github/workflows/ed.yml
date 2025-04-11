@@ -1,16 +1,18 @@
-name: Test Enterprise Developer Setup  
+name: Test Enterprise Developer Setup
 
-on:  
-  workflow_dispatch:  # This allows manual triggering  
+on:
+  workflow_dispatch:
 
 jobs:
   test-setup:
-    runs-on: self-hosted
+    runs-on: self-hosted # Ensure this matches your runner tag
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
 
-      - name: Test SetupEnv through wrapper script
+      # --- STEP 1: Run the Setup Script ---
+      - name: Run ED Setup Wrapper Script
+        id: ed_setup # Optional ID for referencing step outputs if needed later
         shell: cmd
         run: |
           echo ======= TESTING ENTERPRISE DEVELOPER SETUP =======
@@ -23,27 +25,35 @@ jobs:
             exit /b 1
           )
 
-          rem --- Optional: Check if the target SetupEnv.bat exists ---
+          rem --- Optional: Pre-checking SetupEnv.bat ---
           echo ======= PRE-CHECKING SetupEnv.bat LOCATION =======
           dir "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat"
+          rem Add REM comments here if needed, not #
 
           echo ======= CALLING WRAPPER SCRIPT =======
           call Scripts\ed.bat
           set SCRIPT_EXIT_CODE=%ERRORLEVEL%
           echo ======= WRAPPER SCRIPT FINISHED (Exit Code: %SCRIPT_EXIT_CODE%) =======
 
+          rem --- Check Exit Code from ed.bat ---
           if %SCRIPT_EXIT_CODE% NEQ 0 (
             echo ERROR: Wrapper script Scripts\ed.bat failed with exit code %SCRIPT_EXIT_CODE%.
             exit /b %SCRIPT_EXIT_CODE%
           )
 
-          rem --- If we get here, ed.bat exited with 0 (success) and should have set COBDIR via GITHUB_ENV ---
-          echo ======= FINAL WORKFLOW ENVIRONMENT CHECK =======
-          rem Check COBDIR - it should have been set via GITHUB_ENV by the script
+          echo ED Setup Script completed successfully in this step. COBDIR should be available in the next step via GITHUB_ENV.
+
+      # --- STEP 2: Verify the Environment Setup ---
+      - name: Verify Environment Setup
+        shell: cmd
+        run: |
+          echo ======= VERIFYING ENVIRONMENT FROM PREVIOUS STEP =======
           if defined COBDIR (
             echo COBDIR is defined: %COBDIR%
-            echo Workflow step confirms setup successful.
+            echo Environment verification successful.
+            rem Add other checks here if needed, e.g. checking PATH
+            rem echo PATH=%PATH%
           ) else (
-            echo ERROR: COBDIR is NOT defined after script execution using GITHUB_ENV! Check script/runner logs.
+            echo ERROR: COBDIR is NOT defined in this subsequent step! Check GITHUB_ENV mechanism and previous step logs.
             exit /b 1
           )
