@@ -236,8 +236,6 @@ jobs:
           rem --- DEBUGGING THE GOTO JUMP ---
           echo DEBUG YAML: At :CheckCobolBlock. compilation_exit_code is !compilation_exit_code!
           echo DEBUG YAML: About to check if compilation_exit_code (!compilation_exit_code!) is NEQ 0...
-
-          rem *** ENSURE NO STRAY CHARACTERS ON THE NEXT LINE IN YOUR YAML EDITOR ***
           if !compilation_exit_code! NEQ 0 goto SkipCobolDueToBmsError
 
           echo DEBUG YAML: Check PASSED (compilation_exit_code was 0). Proceeding to check cbl flag...
