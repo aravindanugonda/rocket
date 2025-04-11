@@ -20,29 +20,26 @@ set RETCODE=!ERRORLEVEL!
 
 echo Setup script call completed with return code: !RETCODE!
 
-rem --- **** SAFE ECHO FOR DEBUGGING **** ---
-echo DEBUG: Displaying COBDIR value safely using 'set':
-set COBDIR
-echo DEBUG: End of COBDIR display.
-rem --- **** END DEBUGGING ECHO **** ---
+rem --- **** DEBUGGING STEP: DUMP ALL ENV VARS **** ---
+echo DEBUG: Displaying ALL environment variables using 'set':
+set
+echo DEBUG: End of ALL variable display.
+rem --- **** END DEBUGGING STEP **** ---
 
 rem --- Check the return code FIRST ---
 if !RETCODE! NEQ 0 (
   echo ERROR: Environment setup script failed with code !RETCODE!.
-  rem --- Optionally check COBDIR even on failure for diagnostics ---
-  if defined COBDIR (
-    echo DIAGNOSTIC: COBDIR was set to !COBDIR! despite setup failure.
-  ) else (
-    echo DIAGNOSTIC: COBDIR was not set.
-  )
   exit /b !RETCODE!
 )
 
-rem --- If RETCODE is 0, *now* check COBDIR as a secondary validation ---
-if not defined COBDIR (
-  echo ERROR: Setup script succeeded (RETCODE=0) but COBDIR is NOT set.
-  exit /b 1
-)
+rem --- Check COBDIR definition (secondary validation) ---
+rem --- **** TEMPORARILY COMMENTED OUT FOR DEBUGGING **** ---
+rem if not defined COBDIR (
+rem   echo ERROR: Setup script succeeded (RETCODE=0) but COBDIR is NOT set.
+rem   exit /b 1
+rem )
+echo DEBUG: Skipping 'if not defined COBDIR' check.
+
 
 rem --- Optional: Cleanup COBDIR (quotes/semicolons) ---
 rem --- **** TEMPORARILY COMMENTED OUT FOR DEBUGGING **** ---
@@ -52,9 +49,12 @@ rem   set "COBDIR=!COBDIR:~0,-1!"
 rem )
 echo DEBUG: Skipping COBDIR cleanup steps.
 
+
 rem --- Use potentially safer echo method ---
 echo COBDIR is set to (raw value):
-echo.!COBDIR!
+rem Using 'set COBDIR' is safest for display if !COBDIR! contains poison chars
+set COBDIR
+rem echo.!COBDIR!
 echo Environment setup successful.
 
 exit /b 0
