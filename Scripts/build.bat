@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 REM =====================================================================
 REM === CONSOLIDATED COBOL AND BMS COMPILATION SCRIPT                 ===
-REM === v2025-04-11 - Incorporates fixes for PATH, redirection,       ===
+REM === v2025-04-11b - Incorporates fixes for PATH, redirection,      ===
 REM === errorlevel checking, IF parsing bugs (using GOTO), and logging===
 REM === Assumes Micro Focus Env (COBDIR, PATH, LIB etc) is PRE-SET  ===
 REM =====================================================================
@@ -38,7 +38,7 @@ REM =====================================================================
 
 :INIT
 REM Ensure C:\Temp exists early on, as log dir is under it
-if not exist "C:\Temp" mkdir "C:\Temp"
+if not exist "C:\Temp" mkdir "C:\Temp" 2>nul
 
 REM Normalize parameters using PowerShell for case-insensitivity
 for /f "tokens=*" %%V in ('powershell -command "$ENV:modtype.toUpper()"') do set modtype=%%V
@@ -74,64 +74,72 @@ rem Define log file path
 set logfile=%logdir%\Compile_!mydate!_!mytime!.log
 echo DEBUG: Logfile path set to: "!logfile!"
 
-rem Create ALL potentially needed directories robustly
-echo DEBUG: Ensuring other base directories exist...
-if not exist "C:\Build" mkdir "C:\Build"
-if not exist "!build_base!" mkdir "!build_base!"
-if not exist "!loadlib!" mkdir "!loadlib!"
-if not exist "!listing!" mkdir "!listing!"
-if not exist "!logdir!" mkdir "!logdir!"
-if not exist "C:\ES" mkdir "C:\ES"
-if not exist "C:\ES\SHARED" mkdir "C:\ES\SHARED"
-if not exist "C:\ES\SHARED\DIRECTIVES" mkdir "C:\ES\SHARED\DIRECTIVES"
-if not exist "C:\ES\!target_env!" mkdir "C:\ES\!target_env!"
-if not exist "!execpath!" mkdir "!execpath!"
-echo DEBUG: Finished ensuring directories.
+rem Create ALL potentially needed directories robustly, ignoring errors if they exist
+echo DEBUG: Ensuring base directories exist (errors ignored)...
+if not exist "C:\Build" mkdir "C:\Build" 2>nul
+if not exist "!build_base!" mkdir "!build_base!" 2>nul
+if not exist "C:\Temp" mkdir "C:\Temp" 2>nul # Redundant check, but safe
+if not exist "!loadlib!" mkdir "!loadlib!" 2>nul
+if not exist "!listing!" mkdir "!listing!" 2>nul
+if not exist "!logdir!" mkdir "!logdir!" 2>nul
+if not exist "C:\ES" mkdir "C:\ES" 2>nul
+if not exist "C:\ES\SHARED" mkdir "C:\ES\SHARED" 2>nul
+if not exist "C:\ES\SHARED\DIRECTIVES" mkdir "C:\ES\SHARED\DIRECTIVES" 2>nul
+if not exist "C:\ES\!target_env!" mkdir "C:\ES\!target_env!" 2>nul
+if not exist "!execpath!" mkdir "!execpath!" 2>nul
+echo DEBUG: Finished ensuring directories (errors ignored).
 
 REM =====================================================================
-REM === SECTION 3: COMPILATION LOGIC (Using GOTO for dispatch)      ===
+REM === SECTION 3: COMPILATION LOGIC (Reset ERRLEVEL, Use GOTO)     ===
 REM =====================================================================
 :COMPILE
 rem --- Ensure log directory exists RIGHT before first write ---
-echo DEBUG: Ensuring log directory exists: "!logdir!"
-if not exist "!logdir!" mkdir "!logdir!"
+echo DEBUG: Final check for log directory: "!logdir!"
+if not exist "!logdir!" mkdir "!logdir!" 2>nul # Try creating again just in case
+rem Final check - Abort if log dir is unusable
 if not exist "!logdir!" (
-  echo ERROR: Failed to create log directory: !logdir! Cannot proceed.
+  echo ERROR: Failed to create or find log directory: !logdir! Cannot proceed.
   exit /b 96
 ) else (
-  echo DEBUG: Log directory exists or was created.
+  echo DEBUG: Log directory confirmed.
 )
 
-rem --- Test simple redirection with explicit errorlevel check ---
+rem --- Test simple redirection with explicit errorlevel reset and check ---
 echo DEBUG: Testing simple redirection to logfile...
+(call ) # Reset ERRORLEVEL to 0
 echo Test Line > "!logfile!"
-set ECHO_RC=!ERRORLEVEL! # CAPTURE ERRORLEVEL EXPLICITLY
+set ECHO_RC=!ERRORLEVEL! # Capture ERRORLEVEL explicitly
 echo DEBUG: Simple redirection command completed. Captured ERRORLEVEL = !ECHO_RC!
-if !ECHO_RC! NEQ 0 ( # CHECK THE VARIABLE
-   echo ERROR: Simple redirection '>' failed! Captured RC = !ECHO_RC!. Check path/permissions for !logfile!
-   exit /b 95
-) else (
-   echo DEBUG: Simple redirection '>' seems OK (RC = !ECHO_RC!).
-)
+rem --- Check the CAPTURED errorlevel using GOTO ---
+if !ECHO_RC! EQU 0 goto RedirectionOk
+rem --- This runs only if ECHO_RC is NOT 0 ---
+echo ERROR: Simple redirection '>' failed! Captured RC = !ECHO_RC!. Check path/permissions for !logfile!
+exit /b 95
 
-rem --- Try the first actual log append with explicit errorlevel check ---
+:RedirectionOk
+echo DEBUG: Simple redirection '>' seems OK (RC = !ECHO_RC!).
+
+rem --- Now try the first actual log append with explicit errorlevel reset and check ---
 echo DEBUG: Attempting first append redirection '>>' to logfile...
+(call ) # Reset ERRORLEVEL to 0
 echo =================================================================== >> "!logfile!"
-set APPEND_RC=!ERRORLEVEL! # CAPTURE ERRORLEVEL EXPLICITLY
+set APPEND_RC=!ERRORLEVEL! # Capture ERRORLEVEL explicitly
 echo DEBUG: First append redirection command completed. Captured ERRORLEVEL = !APPEND_RC!
-if !APPEND_RC! NEQ 0 ( # CHECK THE VARIABLE
-   echo ERROR: First append redirection '>>' failed! Captured RC = !APPEND_RC!. Syntax incorrect?
-   exit /b 255
-) else (
-   echo DEBUG: First append redirection '>>' seems OK (RC = !APPEND_RC!).
-)
+rem --- Check the CAPTURED errorlevel using GOTO ---
+if !APPEND_RC! EQU 0 goto AppendOk
+rem --- This runs only if APPEND_RC is NOT 0 ---
+echo ERROR: First append redirection '>>' failed! Captured RC = !APPEND_RC!. Potential syntax error or permission issue.
+exit /b 255
+
+:AppendOk
+echo DEBUG: First append redirection '>>' seems OK (RC = !APPEND_RC!).
 
 rem --- If we get here, logging setup is okay. Continue logging. ---
 echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment >> "!logfile!"
 echo =================================================================== >> "!logfile!"
 echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment # Console Echo
 
-rem --- Use GOTO for dispatch to avoid potential IF/ELSE IF/ELSE syntax issues ---
+rem --- Use GOTO for dispatch to avoid IF/ELSE IF/ELSE syntax issues ---
 echo DEBUG: Dispatching based on modtype '!modtype!'...
 if /i "!modtype!"=="BMS" goto CallCompileBMS
 if /i "!modtype!"=="CBL" goto CallCompileCBL
@@ -194,6 +202,7 @@ if !_sub_rc! leq 8 (
   echo Copied compiled module to !execpath!\!modname!.MOD
 ) else (
   echo ERROR: BMS Compile RC= !_sub_rc! (Failure), skipping copy. >> "!logfile!"
+  echo ERROR: BMS Compile RC= !_sub_rc! (Failure), skipping copy. # Console Echo
 )
 
 exit /b !_sub_rc! # Exit subroutine with captured compile RC
@@ -228,7 +237,7 @@ echo DEBUG: Default directives NOT found. Creating default file... >> "!logfile!
 echo Creating default directive file: !directives! >> "!logfile!"
 echo Creating default directive file: !directives! # Console Echo
 rem Directory should exist from :INIT, but check again just in case
-if not exist "C:\ES\SHARED\DIRECTIVES" mkdir "C:\ES\SHARED\DIRECTIVES"
+if not exist "C:\ES\SHARED\DIRECTIVES" mkdir "C:\ES\SHARED\DIRECTIVES" 2>nul
 ( echo sourcetabs & echo cicsecm(int) & echo charset(ascii) & echo dialect(mf) & echo anim ) > "!directives!"
 dir "!directives!" > nul 2> nul
 if errorlevel 1 ( echo ERROR: Failed to create default directives file !directives! >> "!logfile!" & echo ERROR: Failed to create default directives file !directives! & exit /b 97 )
@@ -259,6 +268,7 @@ echo CMD: %COBOL_CMD_LINE% >> "!logfile!" # Log the command line exactly as it w
 
 rem --- Execute the Compilation ---
 echo INFO: Executing COBOL command... # Console Echo
+(call ) # Reset ERRORLEVEL before executing external command
 %COBOL_CMD_LINE% >> "!logfile!" 2>&1
 set "_sub_rc=!errorlevel!" # Capture return code IMMEDIATELY
 
@@ -284,6 +294,7 @@ if !_sub_rc! leq 8 (
 )
 
 exit /b !_sub_rc! # Exit subroutine with the captured compile RC
+
 
 REM =====================================================================
 REM === SECTION 6: EXIT                                             ===
