@@ -16,7 +16,7 @@ jobs:
           echo ======= TESTING ENTERPRISE DEVELOPER SETUP =======  
           echo Current Directory: %CD%  
           
-          IF EXIST "Scripts\edenv.bat" (  
+          IF EXIST "Scripts\ed.bat" (  
             echo Found wrapper script: Scripts\ed.bat  
           ) ELSE (  
             echo ERROR: Wrapper script missing  
