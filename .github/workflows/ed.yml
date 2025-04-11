@@ -3,34 +3,52 @@ name: Test Enterprise Developer Setup
 on:  
   workflow_dispatch:  # This allows manual triggering  
 
-jobs:  
-  test-setup:  
-    runs-on: self-hosted  
-    steps:  
-      - name: Check out repository  
-        uses: actions/checkout@v3  
-        
-      - name: Test SetupEnv through wrapper script  
-        shell: cmd  
-        run: |  
-          echo ======= TESTING ENTERPRISE DEVELOPER SETUP =======  
-          echo Current Directory: %CD%  
-          
-          IF EXIST "Scripts\ed.bat" (  
-            echo Found wrapper script: Scripts\ed.bat  
-          ) ELSE (  
-            echo ERROR: Wrapper script missing  
-            exit 1  
-          )  
-          
-          echo ======= CALLING WRAPPER SCRIPT =======  
+jobs:
+  test-setup:
+    runs-on: self-hosted
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Test SetupEnv through wrapper script
+        shell: cmd
+        run: |
+          echo ======= TESTING ENTERPRISE DEVELOPER SETUP =======
+          echo Current Directory: %CD%
+
+          IF EXIST "Scripts\ed.bat" (
+            echo Found wrapper script: Scripts\ed.bat
+          ) ELSE (
+            echo ERROR: Wrapper script missing at Scripts\ed.bat
+            exit /b 1
+          )
+
+          rem --- OPTIONAL BUT RECOMMENDED: Check if the target SetupEnv.bat exists ---
+          echo ======= PRE-CHECKING SetupEnv.bat LOCATION =======
+          dir "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat"
+          if %ERRORLEVEL% NEQ 0 (
+             echo WARNING: SetupEnv.bat not found at the expected location. The 'call' command below will likely fail.
+             rem We proceed anyway to let ed.bat handle the error, but this gives early feedback.
+          )
+
+          echo ======= CALLING WRAPPER SCRIPT =======
           call Scripts\ed.bat
-          
-          echo ======= ENVIRONMENT CHECK =======  
-          if defined COBDIR (  
-            echo COBDIR=%COBDIR%  
-            echo Setup successful  
-          ) else (  
-            echo Setup failed  
-            exit 1  
+          set SCRIPT_EXIT_CODE=%ERRORLEVEL%
+          echo ======= WRAPPER SCRIPT FINISHED (Exit Code: %SCRIPT_EXIT_CODE%) =======
+
+          rem --- **** CRITICAL: Check the exit code from ed.bat **** ---
+          if %SCRIPT_EXIT_CODE% NEQ 0 (
+            echo ERROR: Wrapper script Scripts\ed.bat failed with exit code %SCRIPT_EXIT_CODE%. See script output above for details.
+            exit /b %SCRIPT_EXIT_CODE%
+          )
+
+          rem --- If we get here, ed.bat exited with 0 (success) ---
+          echo ======= FINAL WORKFLOW ENVIRONMENT CHECK =======
+          if defined COBDIR (
+            echo COBDIR is defined: %COBDIR%
+            echo Workflow step confirms setup successful.
+          ) else (
+            rem This shouldn't happen if ed.bat exited 0, but check anyway.
+            echo ERROR: Wrapper script exited successfully, but COBDIR is NOT defined in this context!
+            exit /b 1
           )
