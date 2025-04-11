@@ -49,11 +49,13 @@ jobs:
         run: |
           echo ======= VERIFYING ENVIRONMENT FROM PREVIOUS STEP =======
           if defined COBDIR (
-            echo COBDIR is defined: %COBDIR%
+            rem --- Use quotes around the expansion ---
+            echo COBDIR is defined: "%COBDIR%"
             echo Environment verification successful.
             rem Add other checks here if needed, e.g. checking PATH
-            rem echo PATH=%PATH%
+            rem echo PATH:
+            rem echo "%PATH%"
           ) else (
-            echo ERROR: COBDIR is NOT defined in this subsequent step! Check GITHUB_ENV mechanism and previous step logs.
+            echo ERROR: COBDIR is NOT defined in this subsequent step! Check GITHUB_ENV mechanism.
             exit /b 1
           )
