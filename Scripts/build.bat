@@ -3,9 +3,9 @@ setlocal enabledelayedexpansion
 
 REM =====================================================================
 REM === CONSOLIDATED COBOL AND BMS COMPILATION SCRIPT                 ===
-REM === v2025-04-11d - Cleaned Version: Removed trailing # comments   ===
-REM === and redirection tests. Retains GOTO workarounds, explicit     ===
-REM === errorlevel capture, enhanced logging, robust mkdir.           ===
+REM === v2025-04-11e - CLEANED VERSION: Removed ALL trailing # comments ===
+REM === Retains GOTO workarounds, explicit errorlevel capture,        ===
+REM === enhanced logging, robust mkdir.                               ===
 REM === Assumes Micro Focus Env (COBDIR, PATH, LIB etc) is PRE-SET  ===
 REM =====================================================================
 
@@ -63,7 +63,7 @@ if not defined COBDIR (
 echo DEBUG build.bat: Checking PATH...
 echo PATH=!PATH!
 set "MFBIN_PATH=!COBDIR!bin"
-rem Use findstr to check if the path fragment exists (case insensitive)
+REM Use findstr to check if the path fragment exists (case insensitive)
 echo "!PATH!" | findstr /i /c:"!MFBIN_PATH!" > nul
 if errorlevel 1 (
   echo WARNING in build.bat: PATH does not seem to contain !MFBIN_PATH! Compile may fail.
@@ -249,23 +249,28 @@ rem Log the result
 echo INFO: COBOL Compile command finished. Captured Return Code: !_sub_rc! >> "!logfile!"
 echo INFO: COBOL Compile command finished. Captured Return Code: !_sub_rc!
 
-rem Copy compiled files based on captured RC
-if !_sub_rc! leq 8 (
-  echo INFO: Compile RC= !_sub_rc! (Success or Warning), copying output files... >> "!logfile!"
-  echo INFO: Compile RC= !_sub_rc! (Success or Warning), copying output files...
-  copy /Y "!loadlib!\!modname!.gnt" "!execpath!\!modname!.gnt" >> "!logfile!" 2>&1
-  copy /Y "!loadlib!\!modname!.idy" "!execpath!\!modname!.idy" >> "!logfile!" 2>&1
-  rem Check for .bnd file existence before copying
-  if exist "!loadlib!\!modname!.bnd" (
-    copy /Y "!loadlib!\!modname!.bnd" "!execpath!\!modname!.bnd" >> "!logfile!" 2>&1
-  )
-  echo Copied compiled files to execution directory: !execpath! >> "!logfile!"
-  echo Copied compiled files to execution directory: !execpath!
-) else (
-  echo ERROR: Compile RC= !_sub_rc! (Failure), skipping copy of output files. >> "!logfile!"
-  echo ERROR: Compile RC= !_sub_rc! (Failure), skipping copy of output files.
-)
+rem --- Decide whether to copy files based on captured RC using GOTO ---
+if !_sub_rc! GTR 8 goto SkipFileCopyOnError_CBL
 
+rem --- This section runs only if _sub_rc is LEQ 8 (Success or Warning) ---
+echo INFO: Compile RC= !_sub_rc! (Success or Warning), copying output files... >> "!logfile!"
+echo INFO: Compile RC= !_sub_rc! (Success or Warning), copying output files...
+copy /Y "!loadlib!\!modname!.gnt" "!execpath!\!modname!.gnt" >> "!logfile!" 2>&1
+copy /Y "!loadlib!\!modname!.idy" "!execpath!\!modname!.idy" >> "!logfile!" 2>&1
+rem Check for .bnd file existence before copying - use GOTO here too for safety
+if not exist "!loadlib!\!modname!.bnd" goto SkipBndCopy_Final_CBL
+copy /Y "!loadlib!\!modname!.bnd" "!execpath!\!modname!.bnd" >> "!logfile!" 2>&1
+:SkipBndCopy_Final_CBL
+echo Copied compiled files to execution directory: !execpath! >> "!logfile!"
+echo Copied compiled files to execution directory: !execpath!
+goto EndCobolSubroutine_CBL
+
+:SkipFileCopyOnError_CBL
+rem --- This section runs only if _sub_rc is GTR 8 (Failure) ---
+echo ERROR: Compile RC= !_sub_rc! (Failure), skipping copy of output files. >> "!logfile!"
+echo ERROR: Compile RC= !_sub_rc! (Failure), skipping copy of output files.
+
+:EndCobolSubroutine_CBL
 exit /b !_sub_rc!
 
 REM =====================================================================
