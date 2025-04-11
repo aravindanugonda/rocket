@@ -204,7 +204,7 @@ jobs:
           rem Note: *_files variables might be empty, which is okay
 
           echo Starting compilation of modified files for environment: %ENV_NAME%
-          set compilation_exit_code=0 # Initialize overall code to success
+          set compilation_exit_code=0 :: Initialize overall code to success  
 
           :: Compile BMS files first if any
           if /i "%bms%" NEQ "y" goto SkipBmsBlock
