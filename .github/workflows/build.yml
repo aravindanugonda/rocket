@@ -203,43 +203,61 @@ jobs:
           set compilation_exit_code=0 # Initialize overall code to success
 
           :: Compile BMS files first if any
-          if /i "%bms%" == "y" (
-            if not "%bms_files%"=="" (
-                for /F "usebackq delims=" %%f in (`powershell -Command "$env:bms_files -split ';'"`) do (
-                  set "fullpath=%%f"
-                  for %%F in ("!fullpath!") do (
-                    set "filename=%%~nF"
-                    echo Compiling BMS file: !filename!
-                    call "%BUILD_SCRIPT%" BMS !filename! %ENV_NAME%
-                    rem Capture the first error code encountered
-                    if !compilation_exit_code! equ 0 if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
-                  )
-                )
-            ) else ( echo No BMS files listed despite bms=y flag. )
-          ) else ( echo Skipping BMS compilation. )
+          if /i "%bms%" NEQ "y" goto SkipBmsBlock
+          if "%bms_files%"=="" goto NoBmsFilesListed
 
-          :: Compile COBOL files ONLY if previous steps were successful
-          if !compilation_exit_code! equ 0 (
-            if /i "%cbl%" == "y" (
-              if not "%cbl_files%"=="" (
-                  for /F "usebackq delims=" %%f in (`powershell -Command "$env:cbl_files -split ';'"`) do (
-                    set "fullpath=%%f"
-                    for %%F in ("!fullpath!") do (
-                      set "filename=%%~nF"
-                      echo Compiling COBOL file: !filename!
-                      call "%BUILD_SCRIPT%" CBL !filename! %ENV_NAME%
-                      rem Capture the first error code encountered
-                      if !compilation_exit_code! equ 0 if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
-                    )
-                  )
-              ) else ( echo No COBOL files listed despite cbl=y flag. )
-            ) else ( echo Skipping COBOL compilation. )
-          ) else (
-            echo Skipping COBOL compilation due to previous BMS errors (Code: !compilation_exit_code!).
+          echo DEBUG YAML: Processing BMS files...
+          for /F "usebackq delims=" %%f in (`powershell -Command "$env:bms_files -split ';'"`) do (
+            set "fullpath=%%f"
+            for %%F in ("!fullpath!") do (
+              set "filename=%%~nF"
+              echo Compiling BMS file: !filename!
+              call "%BUILD_SCRIPT%" BMS !filename! %ENV_NAME%
+              rem Capture the first error code encountered
+              if !compilation_exit_code! equ 0 if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
+            )
           )
+          goto CheckCobolBlock # Jump past the skip/empty messages
 
-          :: Note: CPY files are generally not compiled directly but used via COBCPY
+          :NoBmsFilesListed
+          echo No BMS files listed despite bms=y flag.
+          goto CheckCobolBlock
 
+          :SkipBmsBlock
+          echo Skipping BMS compilation.
+
+          :CheckCobolBlock
+          :: Compile COBOL files ONLY if previous steps were successful
+          if !compilation_exit_code! NEQ 0 goto SkipCobolDueToBmsError
+          if /i "%cbl%" NEQ "y" goto SkipCobolDueToFlag
+          if "%cbl_files%"=="" goto NoCobolFilesListed
+
+          echo DEBUG YAML: Processing COBOL files...
+          for /F "usebackq delims=" %%f in (`powershell -Command "$env:cbl_files -split ';'"`) do (
+            set "fullpath=%%f"
+            for %%F in ("!fullpath!") do (
+              set "filename=%%~nF"
+              echo Compiling COBOL file: !filename!
+              call "%BUILD_SCRIPT%" CBL !filename! %ENV_NAME%
+              rem Capture the first error code encountered
+              if !compilation_exit_code! equ 0 if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
+            )
+          )
+          goto ExportResult # Jump past the skip/empty messages
+
+          :SkipCobolDueToBmsError
+          echo Skipping COBOL compilation due to previous BMS errors (Code: !compilation_exit_code!).
+          goto ExportResult
+
+          :SkipCobolDueToFlag
+          echo Skipping COBOL compilation as cbl flag is not 'y'.
+          goto ExportResult
+
+          :NoCobolFilesListed
+          echo No COBOL files listed despite cbl=y flag.
+          goto ExportResult
+
+          :ExportResult
           rem Export result
           echo compilation_exit_code=!compilation_exit_code! >> "%GITHUB_ENV%"
           echo Compilation step finished with overall exit code: !compilation_exit_code!
