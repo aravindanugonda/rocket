@@ -1,31 +1,50 @@
 @echo off
-setlocal enabledelayedexpansion  REM <--- Enable Delayed Expansion
+setlocal enabledelayedexpansion
 
 echo ===== ENTERPRISE DEVELOPER ENVIRONMENT SETUP =====
 echo Calling environment setup...
 
-rem Use the short (8.3) path for SetupEnv.bat to avoid issues.
-call "C:\PROGRA~2\Micro Focus\Enterprise Developer\SetupEnv.bat" 32
-set RETCODE=!ERRORLEVEL!  REM <--- Use !ERRORLEVEL!
+REM --- Attempt to clear COBDIR first to ensure a clean test ---
+set COBDIR=
 
-rem Check COBDIR immediately after call, using delayed expansion
-if defined COBDIR (
-  REM Use !COBDIR! for potentially problematic variable content
-  set "COBDIR=!COBDIR:"=!"
-  if "!COBDIR:~-1!"==";" (
-    set "COBDIR=!COBDIR:~0,-1!"
+REM --- Use the full path via environment variable for better reliability ---
+set SETUP_SCRIPT="%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat"
+REM --- Optional: Add a check if the script exists ---
+if not exist %SETUP_SCRIPT% (
+  echo ERROR: Setup script not found at %SETUP_SCRIPT%
+  exit /b 9009
+)
+
+call %SETUP_SCRIPT% 32
+set RETCODE=!ERRORLEVEL!
+
+echo Setup script call completed with return code: !RETCODE!
+
+REM --- **** Check the return code FIRST **** ---
+if !RETCODE! NEQ 0 (
+  echo ERROR: Environment setup script failed with code !RETCODE!.
+  REM --- Optionally check COBDIR even on failure for diagnostics ---
+  if defined COBDIR (
+    echo DIAGNOSTIC: COBDIR was set to !COBDIR! despite setup failure.
+  ) else (
+    echo DIAGNOSTIC: COBDIR was not set.
   )
+  exit /b !RETCODE!
 )
 
-echo Setup completed with return code: !RETCODE! REM <--- Use !RETCODE!
-
-rem Use !COBDIR! for the check and echo
-if "!COBDIR!"=="" (
-  echo ERROR: Environment setup failed - COBDIR not set.
+REM --- If RETCODE is 0, *now* check COBDIR as a secondary validation ---
+if not defined COBDIR (
+  echo ERROR: Setup script succeeded (RETCODE=0) but COBDIR is NOT set.
   exit /b 1
-) else (
-  echo COBDIR is set to: !COBDIR! REM <--- Use !COBDIR!
-  echo Environment setup successful.
 )
 
-exit /b !RETCODE! REM <--- Use !RETCODE!
+REM --- Optional: Cleanup COBDIR (quotes/semicolons) ---
+set "COBDIR=!COBDIR:"=!"
+if "!COBDIR:~-1!"==";" (
+  set "COBDIR=!COBDIR:~0,-1!"
+)
+
+echo COBDIR is set to: !COBDIR!
+echo Environment setup successful.
+
+exit /b 0
