@@ -3,8 +3,9 @@ setlocal enabledelayedexpansion
 
 REM =====================================================================
 REM === CONSOLIDATED COBOL AND BMS COMPILATION SCRIPT                 ===
-REM === v2025-04-11c - FINAL VERSION incorporating GOTO workarounds,  ===
-REM === explicit errorlevel capture, enhanced logging, robust mkdir   ===
+REM === v2025-04-11d - Cleaned Version: Removed trailing # comments   ===
+REM === and redirection tests. Retains GOTO workarounds, explicit     ===
+REM === errorlevel capture, enhanced logging, robust mkdir.           ===
 REM === Assumes Micro Focus Env (COBDIR, PATH, LIB etc) is PRE-SET  ===
 REM =====================================================================
 
@@ -95,7 +96,7 @@ REM =====================================================================
 :COMPILE
 rem --- Ensure log directory exists RIGHT before first write ---
 echo DEBUG: Final check for log directory: "!logdir!"
-if not exist "!logdir!" mkdir "!logdir!" 2>nul # Try creating again just in case
+if not exist "!logdir!" mkdir "!logdir!" 2>nul
 rem Final check - Abort if log dir is unusable
 if not exist "!logdir!" (
   echo ERROR: Failed to create or find log directory: !logdir! Cannot proceed.
@@ -108,9 +109,7 @@ rem --- Start Logging ---
 echo =================================================================== >> "!logfile!"
 echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment >> "!logfile!"
 echo =================================================================== >> "!logfile!"
-echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment # Console Echo
-
-rem --- Removed the problematic redirection tests ---
+echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment
 
 rem --- Use GOTO for dispatch to avoid potential IF/ELSE IF/ELSE syntax issues ---
 echo DEBUG: Dispatching based on modtype '!modtype!'...
@@ -126,13 +125,13 @@ exit /b 12
 :CallCompileBMS
 echo DEBUG: Jumping to :COMPILE_BMS...
 call :COMPILE_BMS
-set "_rc=!errorlevel!" # Capture RC from subroutine call
+set "_rc=!errorlevel!"
 goto :EXIT
 
 :CallCompileCBL
 echo DEBUG: Jumping to :COMPILE_COBOL...
 call :COMPILE_COBOL
-set "_rc=!errorlevel!" # Capture RC from subroutine call
+set "_rc=!errorlevel!"
 goto :EXIT
 
 REM =====================================================================
@@ -154,9 +153,9 @@ echo INFO: Preparing to execute BMS compile command. >> "!logfile!"
 echo CMD: %BMS_CMD_LINE% >> "!logfile!"
 echo INFO: Executing BMS command...
 
-(call ) # Reset errorlevel before execution
+(call )
 %BMS_CMD_LINE% >> "!logfile!" 2>&1
-set "_sub_rc=!errorlevel!" # Capture RC immediately
+set "_sub_rc=!errorlevel!"
 
 echo INFO: BMS Compile command finished. Captured Return Code: !_sub_rc! >> "!logfile!"
 echo INFO: BMS Compile command finished. Captured Return Code: !_sub_rc!
@@ -176,17 +175,17 @@ if !_sub_rc! leq 8 (
   echo Copied compiled module to !execpath!\!modname!.MOD
 ) else (
   echo ERROR: BMS Compile RC= !_sub_rc! (Failure), skipping copy. >> "!logfile!"
-  echo ERROR: BMS Compile RC= !_sub_rc! (Failure), skipping copy. # Console Echo
+  echo ERROR: BMS Compile RC= !_sub_rc! (Failure), skipping copy.
 )
 
-exit /b !_sub_rc! # Exit subroutine with captured compile RC
+exit /b !_sub_rc!
 
 REM =====================================================================
 REM === SECTION 5: COBOL COMPILATION (Using GOTO, !var!, logging)   ===
 REM =====================================================================
 :COMPILE_COBOL
 echo Compiling COBOL program: !modname! >> "!logfile!"
-echo Compiling COBOL program: !modname! # Console Echo
+echo Compiling COBOL program: !modname!
 
 rem Check bypass
 for %%G in (%BYPASSCBL%) do ( if /i "%%~G"=="!modname!" ( echo Bypassing !modname! >> "!logfile!" & echo Bypassing !modname! & exit /b 1 ) )
@@ -209,7 +208,7 @@ if !errorlevel! EQU 0 goto DefaultDirectiveFound_CBL_Final
 
 echo DEBUG: Default directives NOT found. Creating default file... >> "!logfile!"
 echo Creating default directive file: !directives! >> "!logfile!"
-echo Creating default directive file: !directives! # Console Echo
+echo Creating default directive file: !directives!
 rem Directory should exist from :INIT, but check again just in case
 if not exist "C:\ES\SHARED\DIRECTIVES" mkdir "C:\ES\SHARED\DIRECTIVES" 2>nul
 ( echo sourcetabs & echo cicsecm(int) & echo charset(ascii) & echo dialect(mf) & echo anim ) > "!directives!"
@@ -229,31 +228,31 @@ goto SetCobcpy_CBL_Final
 
 :SetCobcpy_CBL_Final
 echo DEBUG: Using directives file: !directives! >> "!logfile!"
-echo DEBUG: Using directives file: !directives! # Console Echo
+echo DEBUG: Using directives file: !directives!
 
 rem Setup COBCPY environment
-set "COBCPY=!bms_cpy!;!cpy_dir!;%COBCPY%" # Append local paths to inherited COBCPY
+set "COBCPY=!bms_cpy!;!cpy_dir!;%COBCPY%"
 echo Using COBCPY=!COBCPY!>> "!logfile!"
 
 rem --- Enhanced Logging Around Compilation ---
 set "COBOL_CMD_LINE=cobol "!source_file!",nul,"!listing!\!modname!.lst",nul, ANIM GNT("!loadlib!\!modname!.gnt") COBIDY("!loadlib!") USE("!directives!") NOQUERY ;"
 echo INFO: Preparing to execute COBOL compile command. >> "!logfile!"
-echo CMD: %COBOL_CMD_LINE% >> "!logfile!" # Log the command line exactly as it will run
+echo CMD: %COBOL_CMD_LINE% >> "!logfile!"
 
 rem --- Execute the Compilation ---
-echo INFO: Executing COBOL command... # Console Echo
-(call ) # Reset ERRORLEVEL before executing external command
+echo INFO: Executing COBOL command...
+(call )
 %COBOL_CMD_LINE% >> "!logfile!" 2>&1
-set "_sub_rc=!errorlevel!" # Capture return code IMMEDIATELY
+set "_sub_rc=!errorlevel!"
 
 rem Log the result
 echo INFO: COBOL Compile command finished. Captured Return Code: !_sub_rc! >> "!logfile!"
-echo INFO: COBOL Compile command finished. Captured Return Code: !_sub_rc! # Console Echo
+echo INFO: COBOL Compile command finished. Captured Return Code: !_sub_rc!
 
 rem Copy compiled files based on captured RC
 if !_sub_rc! leq 8 (
   echo INFO: Compile RC= !_sub_rc! (Success or Warning), copying output files... >> "!logfile!"
-  echo INFO: Compile RC= !_sub_rc! (Success or Warning), copying output files... # Console Echo
+  echo INFO: Compile RC= !_sub_rc! (Success or Warning), copying output files...
   copy /Y "!loadlib!\!modname!.gnt" "!execpath!\!modname!.gnt" >> "!logfile!" 2>&1
   copy /Y "!loadlib!\!modname!.idy" "!execpath!\!modname!.idy" >> "!logfile!" 2>&1
   rem Check for .bnd file existence before copying
@@ -261,13 +260,13 @@ if !_sub_rc! leq 8 (
     copy /Y "!loadlib!\!modname!.bnd" "!execpath!\!modname!.bnd" >> "!logfile!" 2>&1
   )
   echo Copied compiled files to execution directory: !execpath! >> "!logfile!"
-  echo Copied compiled files to execution directory: !execpath! # Console Echo
+  echo Copied compiled files to execution directory: !execpath!
 ) else (
   echo ERROR: Compile RC= !_sub_rc! (Failure), skipping copy of output files. >> "!logfile!"
-  echo ERROR: Compile RC= !_sub_rc! (Failure), skipping copy of output files. # Console Echo
+  echo ERROR: Compile RC= !_sub_rc! (Failure), skipping copy of output files.
 )
 
-exit /b !_sub_rc! # Exit subroutine with the captured compile RC
+exit /b !_sub_rc!
 
 REM =====================================================================
 REM === SECTION 6: EXIT                                             ===
