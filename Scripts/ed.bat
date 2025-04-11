@@ -4,12 +4,12 @@ setlocal enabledelayedexpansion
 echo ===== ENTERPRISE DEVELOPER ENVIRONMENT SETUP =====
 echo Calling environment setup...
 
-REM --- Attempt to clear COBDIR first to ensure a clean test ---
+rem --- Attempt to clear COBDIR first to ensure a clean test ---
 set COBDIR=
 
-REM --- Use the full path via environment variable for better reliability ---
+rem --- Use the full path via environment variable for better reliability ---
 set SETUP_SCRIPT="%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat"
-REM --- Optional: Add a check if the script exists ---
+rem --- Optional: Add a check if the script exists ---
 if not exist %SETUP_SCRIPT% (
   echo ERROR: Setup script not found at %SETUP_SCRIPT%
   exit /b 9009
@@ -20,10 +20,16 @@ set RETCODE=!ERRORLEVEL!
 
 echo Setup script call completed with return code: !RETCODE!
 
-REM --- **** Check the return code FIRST **** ---
+rem --- **** SAFE ECHO FOR DEBUGGING **** ---
+echo DEBUG: Displaying COBDIR value safely using 'set':
+set COBDIR
+echo DEBUG: End of COBDIR display.
+rem --- **** END DEBUGGING ECHO **** ---
+
+rem --- Check the return code FIRST ---
 if !RETCODE! NEQ 0 (
   echo ERROR: Environment setup script failed with code !RETCODE!.
-  REM --- Optionally check COBDIR even on failure for diagnostics ---
+  rem --- Optionally check COBDIR even on failure for diagnostics ---
   if defined COBDIR (
     echo DIAGNOSTIC: COBDIR was set to !COBDIR! despite setup failure.
   ) else (
@@ -32,19 +38,23 @@ if !RETCODE! NEQ 0 (
   exit /b !RETCODE!
 )
 
-REM --- If RETCODE is 0, *now* check COBDIR as a secondary validation ---
+rem --- If RETCODE is 0, *now* check COBDIR as a secondary validation ---
 if not defined COBDIR (
   echo ERROR: Setup script succeeded (RETCODE=0) but COBDIR is NOT set.
   exit /b 1
 )
 
-REM --- Optional: Cleanup COBDIR (quotes/semicolons) ---
-set "COBDIR=!COBDIR:"=!"
-if "!COBDIR:~-1!"==";" (
-  set "COBDIR=!COBDIR:~0,-1!"
-)
+rem --- Optional: Cleanup COBDIR (quotes/semicolons) ---
+rem --- **** TEMPORARILY COMMENTED OUT FOR DEBUGGING **** ---
+rem set "COBDIR=!COBDIR:"=!"
+rem if "!COBDIR:~-1!"==";" (
+rem   set "COBDIR=!COBDIR:~0,-1!"
+rem )
+echo DEBUG: Skipping COBDIR cleanup steps.
 
-echo COBDIR is set to: !COBDIR!
+rem --- Use potentially safer echo method ---
+echo COBDIR is set to (raw value):
+echo.!COBDIR!
 echo Environment setup successful.
 
 exit /b 0
