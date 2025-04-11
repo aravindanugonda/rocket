@@ -1,10 +1,10 @@
 @echo off
-REM Minimal build script for testing basic cobol execution v2
+REM Minimal build script for testing basic cobol execution v3
 REM Assumes COBDIR, PATH, LIB, INCLUDE etc are set by the caller (ed.bat via GITHUB_ENV)
 
 setlocal enabledelayedexpansion
 
-REM --- Parameters (use defaults for SHARED) ---
+REM --- Parameters (use defaults for TESTCBL/SHARED) ---
 set "modtype=CBL"
 set "modname=TESTCBL"
 set "target_env=SHARED"
@@ -51,7 +51,9 @@ REM --- Construct and Execute COBOL Command ---
 set "COBOL_CMD_LINE=cobol "!source_file!",nul,"!listing!\!modname!.lst",nul, ANIM GNT("!loadlib!\!modname!.gnt") COBIDY("!loadlib!") USE("!directives_file!") NOQUERY ;"
 echo DEBUG Minimal: Preparing to execute: %COBOL_CMD_LINE%
 
-(call ) REM Reset errorlevel just before execution
+REM *** FIX: Separate REM onto its own line ***
+(call )
+REM Reset errorlevel just before execution
 %COBOL_CMD_LINE%
 set compile_rc=!errorlevel!
 echo DEBUG Minimal: COBOL command finished. RC = !compile_rc!
