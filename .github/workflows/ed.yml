@@ -24,7 +24,7 @@ jobs:
           )  
           
           echo ======= CALLING WRAPPER SCRIPT =======  
-          call Scripts\ed.bat 32  
+          call Scripts\ed.bat
           
           echo ======= ENVIRONMENT CHECK =======  
           if defined COBDIR (  
