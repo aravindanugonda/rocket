@@ -58,9 +58,16 @@ echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment >> "
 echo =================================================================== >> "!logfile!"
 echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment
 
-if /i "!modtype!"=="BMS" ( call :COMPILE_BMS )
-else if /i "!modtype!"=="CBL" ( call :COMPILE_COBOL )
-else ( /* ... error exit ... */ )
+if /i "!modtype!"=="BMS" (
+  call :COMPILE_BMS
+) else if /i "!modtype!"=="CBL" 
+  call :COMPILE_COBOL
+) else (                        
+  echo ERROR: Invalid module type specified: !modtype! >> "!logfile!"
+  echo ERROR: Invalid module type specified: !modtype!
+  echo Valid types are BMS or CBL
+  exit /b 12
+)
 
 set "_rc=!errorlevel!"
 goto :EXIT
