@@ -15,15 +15,19 @@ if not exist "!SETUP_SCRIPT_PATH!" (
   exit /b 9009
 )
 
-rem --- Construct the CORE command to run inside cmd /c (NO redirection here) ---
-rem Note: Only ONE outer pair of quotes for the whole command passed to /c
-set "CORE_CMD="call "!SETUP_SCRIPT_PATH!" 32 && (echo RETCODE_INNER=0& set COBDIR) || (echo RETCODE_INNER=1& set COBDIR)""
+rem --- Construct the CORE command to run inside cmd /c ---
+rem REMOVED extra quotes from beginning and end of the value being assigned
+set "CORE_CMD=call "!SETUP_SCRIPT_PATH!" 32 && (echo RETCODE_INNER=0& set COBDIR) || (echo RETCODE_INNER=1& set COBDIR)"
 
-echo DEBUG: Prepared core command: !CORE_CMD!
-echo DEBUG: Will execute: cmd /c !CORE_CMD! > "!TEMP_ENV_FILE!"
+echo DEBUG: Prepared core command. Value assigned is:
+rem Using echo.!VAR! is safer for potentially complex strings
+echo.!CORE_CMD!
+echo DEBUG: --- End of Prepared core command value ---
+echo DEBUG: Will execute: cmd /c "!CORE_CMD!" > "!TEMP_ENV_FILE!"
 
 rem --- Execute cmd /c with the core command, redirecting output HERE ---
-cmd /c !CORE_CMD! > "!TEMP_ENV_FILE!"
+rem Ensure the command passed to /c is quoted, as it contains spaces/special chars
+cmd /c "!CORE_CMD!" > "!TEMP_ENV_FILE!"
 set CALL_EXITCODE=!ERRORLEVEL!
 echo DEBUG: Sub-shell execution finished with exit code: !CALL_EXITCODE!
 
@@ -33,9 +37,7 @@ if not exist "!TEMP_ENV_FILE!" (
   exit /b 2
 )
 for %%F in ("!TEMP_ENV_FILE!") do if %%~zF==0 (
-  rem If RETCODE was 1 (failure), COBDIR might not be set, so file could be small but not empty
-  rem Only exit if file is empty AND CALL_EXITCODE indicates severe failure (e.g., cmd /c crash)
-  if !CALL_EXITCODE! NEQ 0 if !CALL_EXITCODE! NEQ 1 ( 
+  if !CALL_EXITCODE! NEQ 0 if !CALL_EXITCODE! NEQ 1 (
      echo ERROR: Temp file empty/small and sub-shell exit code !CALL_EXITCODE! indicates failure.
      del "!TEMP_ENV_FILE!"
      exit /b 3
@@ -68,14 +70,14 @@ rem --- Now perform checks using the captured values ---
 if !RETCODE! EQU 0 goto SetupSuccess
 
 echo ERROR: Environment setup script failed in sub-shell with code !RETCODE!.
-exit /b !RETCODE! # Propagate actual failure code if it was non-zero
+exit /b !RETCODE!
 
 :SetupSuccess
 echo DEBUG: RETCODE was 0, proceeding...
 
 if "!COBDIR!"=="" (
   echo ERROR: Setup script succeeded (RETCODE=0) but COBDIR was NOT captured or was empty from sub-shell. Check temp file parsing.
-  exit /b 1 # Use a distinct error code for this case
+  exit /b 1
 )
 
 rem --- Cleanup COBDIR captured ---
@@ -96,5 +98,3 @@ if defined GITHUB_ENV (
 echo Environment setup successful.
 
 exit /b 0
-
-rem Removed the :ExecuteSubCommand subroutine as it's no longer needed
