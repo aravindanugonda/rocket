@@ -18,7 +18,7 @@ on:
         description: 'Simulated target branch (main, release-c, release-f, release-p)'
         required: true
         # --- Set default to match the user's request ---
-        default: 'release-c'
+        default: 'main'
       test_changed_files:
         description: 'Simulated changed files (semicolon-separated relative paths)'
         required: true
