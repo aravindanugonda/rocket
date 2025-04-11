@@ -188,16 +188,20 @@ jobs:
       # This step uses %variables% set via GITHUB_ENV and calls the corrected build.bat
       - name: Compile Modified Files
         id: build
-        shell: cmd
+        shell: cmd # Ensure shell is cmd for this script block
         run: |
           @echo off
           setlocal enabledelayedexpansion
 
           echo ======= STARTING COMPILATION =======
           echo Verifying COBDIR before compilation loop...
+          rem Check essential variables passed via GITHUB_ENV
           if defined COBDIR ( echo COBDIR is defined: "%COBDIR%" ) else ( echo ERROR: COBDIR is NOT defined! & exit /b 1 )
           if defined ENV_NAME ( echo ENV_NAME is defined: %ENV_NAME% ) else ( echo ERROR: ENV_NAME is NOT defined! & exit /b 1 )
           if defined BUILD_SCRIPT ( echo BUILD_SCRIPT is defined: %BUILD_SCRIPT% ) else ( echo ERROR: BUILD_SCRIPT is NOT defined! & exit /b 1 )
+          if defined bms ( echo bms flag is defined: %bms% ) else ( echo ERROR: bms flag is NOT defined! & exit /b 1 )
+          if defined cbl ( echo cbl flag is defined: %cbl% ) else ( echo ERROR: cbl flag is NOT defined! & exit /b 1 )
+          rem Note: *_files variables might be empty, which is okay
 
           echo Starting compilation of modified files for environment: %ENV_NAME%
           set compilation_exit_code=0 # Initialize overall code to success
@@ -228,24 +232,36 @@ jobs:
 
           :CheckCobolBlock
           :: Compile COBOL files ONLY if previous steps were successful
+
+          rem --- DEBUGGING THE GOTO JUMP ---
+          echo DEBUG YAML: At :CheckCobolBlock. compilation_exit_code is !compilation_exit_code!
+          echo DEBUG YAML: About to check if compilation_exit_code (!compilation_exit_code!) is NEQ 0...
+
+          rem *** ENSURE NO STRAY CHARACTERS ON THE NEXT LINE IN YOUR YAML EDITOR ***
           if !compilation_exit_code! NEQ 0 goto SkipCobolDueToBmsError
+
+          echo DEBUG YAML: Check PASSED (compilation_exit_code was 0). Proceeding to check cbl flag...
+          rem --- END DEBUGGING ---
+
           if /i "%cbl%" NEQ "y" goto SkipCobolDueToFlag
           if "%cbl_files%"=="" goto NoCobolFilesListed
 
           echo DEBUG YAML: Processing COBOL files...
           for /F "usebackq delims=" %%f in (`powershell -Command "$env:cbl_files -split ';'"`) do (
-            set "fullpath=%%f"
-            for %%F in ("!fullpath!") do (
-              set "filename=%%~nF"
-              echo Compiling COBOL file: !filename!
-              call "%BUILD_SCRIPT%" CBL !filename! %ENV_NAME%
-              rem Capture the first error code encountered
-              if !compilation_exit_code! equ 0 if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
-            )
+              set "fullpath=%%f"
+              for %%F in ("!fullpath!") do (
+                set "filename=%%~nF"
+                echo Compiling COBOL file: !filename!
+                call "%BUILD_SCRIPT%" CBL !filename! %ENV_NAME%
+                rem Capture the first error code encountered
+                if !compilation_exit_code! equ 0 if !errorlevel! neq 0 set compilation_exit_code=!errorlevel!
+              )
           )
-          goto ExportResult # Jump past the skip/empty messages
+          echo DEBUG YAML: Finished COBOL FOR loop.
+          goto ExportResult
 
           :SkipCobolDueToBmsError
+          rem Cleaned up echo message
           echo Skipping COBOL compilation due to previous BMS errors (Code: !compilation_exit_code!).
           goto ExportResult
 
@@ -258,8 +274,9 @@ jobs:
           goto ExportResult
 
           :ExportResult
-          rem Export result
+          rem Export result to be used by subsequent steps
           echo compilation_exit_code=!compilation_exit_code! >> "%GITHUB_ENV%"
+          rem Cleaned up echo message
           echo Compilation step finished with overall exit code: !compilation_exit_code!
           exit /b !compilation_exit_code! # Exit step with the first error encountered (or 0)
           
