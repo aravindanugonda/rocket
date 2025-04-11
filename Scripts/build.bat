@@ -1,8 +1,19 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM ... (SECTION 1: PARAMETERS - OK) ...
+REM =====================================================================
+REM === CONSOLIDATED COBOL AND BMS COMPILATION SCRIPT                 ===
+REM === v2025-04-11 - Incorporates fixes for PATH, redirection,       ===
+REM === errorlevel checking, IF parsing bugs (using GOTO), and logging===
+REM === Assumes Micro Focus Env (COBDIR, PATH, LIB etc) is PRE-SET  ===
+REM =====================================================================
+
+REM =====================================================================
+REM === SECTION 1: CONFIGURABLE PARAMETERS                          ===
+REM =====================================================================
+
 :PARAMETERS
+REM Base directories
 set base=C:\Build\Rehost
 set build_base=C:\Build\Rehost
 set source_base=C:\Build\Rehost
@@ -13,57 +24,72 @@ set cpy_dir=%source_base%
 set bms_cpy=%source_base%
 set cbl_dir=%source_base%
 set bms_dir=%source_base%
+
+REM Input Parameters
 set modtype=%1
 set modname=%2
 if "%3"=="" ( set target_env=CICSTSTQ ) else ( set target_env=%3 )
 set execpath=C:\ES\%target_env%\LOADLIB
 set BYPASSCBL="XXXXXXXX"
 
-REM ... (SECTION 2: INITIALIZATION ) ...
+REM =====================================================================
+REM === SECTION 2: INITIALIZATION                                   ===
+REM =====================================================================
+
 :INIT
-REM Ensure C:\Temp exists early on
+REM Ensure C:\Temp exists early on, as log dir is under it
 if not exist "C:\Temp" mkdir "C:\Temp"
 
-REM Normalize parameters ... (OK) ...
+REM Normalize parameters using PowerShell for case-insensitivity
 for /f "tokens=*" %%V in ('powershell -command "$ENV:modtype.toUpper()"') do set modtype=%%V
 for /f "tokens=*" %%V in ('powershell -command "$ENV:modname.toUpper()"') do set modname=%%V
 for /f "tokens=*" %%V in ('powershell -command "$ENV:target_env.toUpper()"') do set target_env=%%V
 
+REM Generate Date/Time stamp for log file
 set mydate=%date:/=-%
 set mydate=%mydate: =%
 set mytime=%time::=.%
 set mytime=%mytime: =%
 
 echo DEBUG build.bat: Verifying pre-set environment...
-if not defined COBDIR ( echo ERROR in build.bat: COBDIR is not defined! & exit /b 98 )
-echo DEBUG build.bat: COBDIR is !COBDIR!
+if not defined COBDIR (
+  echo ERROR in build.bat: COBDIR is not defined! Environment setup failed earlier.
+  exit /b 98
+) else (
+  echo DEBUG build.bat: COBDIR is !COBDIR!
+)
 
 echo DEBUG build.bat: Checking PATH...
 echo PATH=!PATH!
 set "MFBIN_PATH=!COBDIR!bin"
+rem Use findstr to check if the path fragment exists (case insensitive)
 echo "!PATH!" | findstr /i /c:"!MFBIN_PATH!" > nul
-if errorlevel 1 ( echo WARNING in build.bat: PATH does not seem to contain !MFBIN_PATH! ) else ( echo DEBUG build.bat: Found !MFBIN_PATH! in PATH. )
+if errorlevel 1 (
+  echo WARNING in build.bat: PATH does not seem to contain !MFBIN_PATH! Compile may fail.
+) else (
+  echo DEBUG build.bat: Found !MFBIN_PATH! in PATH.
+)
 
-set logfile=%logdir%\Compile_%mydate%_%mytime%.log
+rem Define log file path
+set logfile=%logdir%\Compile_!mydate!_!mytime!.log
 echo DEBUG: Logfile path set to: "!logfile!"
 
-rem Create OTHER directories needed by this script
+rem Create ALL potentially needed directories robustly
 echo DEBUG: Ensuring other base directories exist...
 if not exist "C:\Build" mkdir "C:\Build"
-if not exist "C:\Build\Rehost" mkdir "C:\Build\Rehost"
+if not exist "!build_base!" mkdir "!build_base!"
 if not exist "!loadlib!" mkdir "!loadlib!"
 if not exist "!listing!" mkdir "!listing!"
-rem Create log dir specifically right before first use below
+if not exist "!logdir!" mkdir "!logdir!"
 if not exist "C:\ES" mkdir "C:\ES"
 if not exist "C:\ES\SHARED" mkdir "C:\ES\SHARED"
 if not exist "C:\ES\SHARED\DIRECTIVES" mkdir "C:\ES\SHARED\DIRECTIVES"
 if not exist "C:\ES\!target_env!" mkdir "C:\ES\!target_env!"
 if not exist "!execpath!" mkdir "!execpath!"
-echo DEBUG: Finished ensuring other directories.
-
+echo DEBUG: Finished ensuring directories.
 
 REM =====================================================================
-REM === SECTION 3: COMPILATION LOGIC (Debug Redirection)            ===
+REM === SECTION 3: COMPILATION LOGIC (Using GOTO for dispatch)      ===
 REM =====================================================================
 :COMPILE
 rem --- Ensure log directory exists RIGHT before first write ---
@@ -76,32 +102,36 @@ if not exist "!logdir!" (
   echo DEBUG: Log directory exists or was created.
 )
 
-rem --- Test simple redirection ---
+rem --- Test simple redirection with explicit errorlevel check ---
 echo DEBUG: Testing simple redirection to logfile...
 echo Test Line > "!logfile!"
-if errorlevel 1 (
-   echo ERROR: Simple redirection '>' failed! Check path/permissions for !logfile!
+set ECHO_RC=!ERRORLEVEL! # CAPTURE ERRORLEVEL EXPLICITLY
+echo DEBUG: Simple redirection command completed. Captured ERRORLEVEL = !ECHO_RC!
+if !ECHO_RC! NEQ 0 ( # CHECK THE VARIABLE
+   echo ERROR: Simple redirection '>' failed! Captured RC = !ECHO_RC!. Check path/permissions for !logfile!
    exit /b 95
 ) else (
-   echo DEBUG: Simple redirection '>' seems OK.
+   echo DEBUG: Simple redirection '>' seems OK (RC = !ECHO_RC!).
 )
 
-rem --- Now try the actual log append ---
+rem --- Try the first actual log append with explicit errorlevel check ---
 echo DEBUG: Attempting first append redirection '>>' to logfile...
 echo =================================================================== >> "!logfile!"
-if errorlevel 1 (
-   echo ERROR: First append redirection '>>' failed! Syntax incorrect?
-   exit /b 255 # Use 255 as it matches observed error
+set APPEND_RC=!ERRORLEVEL! # CAPTURE ERRORLEVEL EXPLICITLY
+echo DEBUG: First append redirection command completed. Captured ERRORLEVEL = !APPEND_RC!
+if !APPEND_RC! NEQ 0 ( # CHECK THE VARIABLE
+   echo ERROR: First append redirection '>>' failed! Captured RC = !APPEND_RC!. Syntax incorrect?
+   exit /b 255
 ) else (
-   echo DEBUG: First append redirection '>>' seems OK.
+   echo DEBUG: First append redirection '>>' seems OK (RC = !APPEND_RC!).
 )
 
-rem --- If we get here, the first append worked. Continue logging. ---
+rem --- If we get here, logging setup is okay. Continue logging. ---
 echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment >> "!logfile!"
 echo =================================================================== >> "!logfile!"
 echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment # Console Echo
 
-rem --- Use GOTO for dispatch ---
+rem --- Use GOTO for dispatch to avoid potential IF/ELSE IF/ELSE syntax issues ---
 echo DEBUG: Dispatching based on modtype '!modtype!'...
 if /i "!modtype!"=="BMS" goto CallCompileBMS
 if /i "!modtype!"=="CBL" goto CallCompileCBL
@@ -115,108 +145,151 @@ exit /b 12
 :CallCompileBMS
 echo DEBUG: Jumping to :COMPILE_BMS...
 call :COMPILE_BMS
-set "_rc=!errorlevel!"
+set "_rc=!errorlevel!" # Capture RC from subroutine call
 goto :EXIT
 
 :CallCompileCBL
 echo DEBUG: Jumping to :COMPILE_COBOL...
 call :COMPILE_COBOL
-set "_rc=!errorlevel!"
+set "_rc=!errorlevel!" # Capture RC from subroutine call
 goto :EXIT
 
 REM =====================================================================
-REM === SECTION 5: COBOL COMPILATION                                ===
+REM === SECTION 4: BMS COMPILATION (Using !var! and !_sub_rc!)      ===
+REM =====================================================================
+:COMPILE_BMS
+echo Compiling BMS map: !modname! >> "!logfile!"
+echo Compiling BMS map: !modname!
+
+set "source_file=!bms_dir!\!modname!.bms"
+if not exist "!source_file!" (
+  echo ERROR: BMS source file not found: !source_file! >> "!logfile!"
+  echo ERROR: BMS source file not found: !source_file!
+  exit /b 8
+)
+
+set "BMS_CMD_LINE=MFBMSCL "!source_file!" /BINARY="!loadlib!\" /COBOL="!bms_cpy!\" /VERBOSE /SDF /HLL /IGNORE /SYSPARM=MAP /SYSPARM=DSECT /MAP=!modname! /DSECT=!modname!"
+echo INFO: Preparing to execute BMS compile command. >> "!logfile!"
+echo CMD: %BMS_CMD_LINE% >> "!logfile!"
+echo INFO: Executing BMS command...
+
+%BMS_CMD_LINE% >> "!logfile!" 2>&1
+set "_sub_rc=!errorlevel!" # Capture RC immediately
+
+echo INFO: BMS Compile command finished. Captured Return Code: !_sub_rc! >> "!logfile!"
+echo INFO: BMS Compile command finished. Captured Return Code: !_sub_rc!
+
+REM Copy .cpy file if generated
+if exist "!modname!.cpy" (
+  move /Y "!modname!.cpy" "!bms_cpy!\!modname!.cpy" >> "!logfile!" 2>&1
+  echo Moved copybook to !bms_cpy!\!modname!.cpy >> "!logfile!"
+  echo Moved copybook to !bms_cpy!\!modname!.cpy
+)
+
+REM Copy compiled module to target execution directory
+if !_sub_rc! leq 8 (
+  echo INFO: BMS Compile RC= !_sub_rc! (Success/Warning), copying output file... >> "!logfile!"
+  copy /Y "!loadlib!\!modname!.MOD" "!execpath!\!modname!.MOD" >> "!logfile!" 2>&1
+  echo Copied compiled module to !execpath!\!modname!.MOD >> "!logfile!"
+  echo Copied compiled module to !execpath!\!modname!.MOD
+) else (
+  echo ERROR: BMS Compile RC= !_sub_rc! (Failure), skipping copy. >> "!logfile!"
+)
+
+exit /b !_sub_rc! # Exit subroutine with captured compile RC
+
+REM =====================================================================
+REM === SECTION 5: COBOL COMPILATION (Using GOTO, !var!, logging)   ===
 REM =====================================================================
 :COMPILE_COBOL
 echo Compiling COBOL program: !modname! >> "!logfile!"
-echo Compiling COBOL program: !modname!
+echo Compiling COBOL program: !modname! # Console Echo
 
-REM Check bypass ... (OK) ...
-for %%G in (%BYPASSCBL%) do ( if /i "%%~G"=="!modname!" ( exit /b 1 ) )
+rem Check bypass
+for %%G in (%BYPASSCBL%) do ( if /i "%%~G"=="!modname!" ( echo Bypassing !modname! >> "!logfile!" & echo Bypassing !modname! & exit /b 1 ) )
 
 set "source_file=!cbl_dir!\!modname!.cbl"
-if not exist "!source_file!" ( /* ... error exit ... */ )
+if not exist "!source_file!" ( echo ERROR: COBOL source file not found: !source_file! >> "!logfile!" & echo ERROR: COBOL source file not found: !source_file! & exit /b 8 )
 
-REM --- Debugging Directives Logic ---
-set "directives=C:\ES\SHARED\DIRECTIVES\!modname!.dir" # Initial attempt path
-set "directives_mod=!directives!" # Save it
+rem --- Get directives file using GOTO logic ---
+set "directives=C:\ES\SHARED\DIRECTIVES\!modname!.dir"
+set "directives_mod=!directives!"
+echo DEBUG: Checking for module-specific directives: "!directives_mod!" >> "!logfile!"
+dir "!directives_mod!" > nul 2> nul
+if !errorlevel! EQU 0 goto ModuleDirectiveFound_CBL_Final
 
-echo DEBUG: Checking for module-specific directives: "!directives_mod!" # Line 98 printed OK
-
-echo DEBUG: About to run DIR command on "!directives_mod!"
-dir "!directives_mod!" # Temporarily remove redirection > nul 2> nul
-set DIR_RC=!errorlevel!
-echo DEBUG: DIR command finished with errorlevel: !DIR_RC!
-
-if !DIR_RC! EQU 0 goto ModuleDirectiveFound # Use EQU for clarity, check for 0 explicitly
-
-echo DEBUG: Module-specific directives NOT found or inaccessible (DIR RC: !DIR_RC!).
-set "directives=C:\ES\SHARED\DIRECTIVES\CBL.dir" # Set path to default
-echo DEBUG: Checking for default directives: "!directives!"
-
-echo DEBUG: About to run DIR command on "!directives!"
-dir "!directives!" # Temporarily remove redirection > nul 2> nul
-set DIR_RC_DEFAULT=!errorlevel!
-echo DEBUG: DIR command finished with errorlevel: !DIR_RC_DEFAULT!
-
-if !DIR_RC_DEFAULT! EQU 0 goto DefaultDirectiveFound
-
-rem --- Default not found either, create it ---
-echo DEBUG: Default directives NOT found or inaccessible (DIR RC: !DIR_RC_DEFAULT!). Creating default file...
-echo Creating default directive file: !directives! >> "!logfile!"
-echo Creating default directive file: !directives!
-if not exist "C:\ES\SHARED\DIRECTIVES" (
-    echo DEBUG: Creating directory C:\ES\SHARED\DIRECTIVES
-    mkdir "C:\ES\SHARED\DIRECTIVES"
-)
-(
-    echo sourcetabs
-    echo cicsecm(int)
-    echo charset(ascii)
-    echo dialect(mf)
-    echo anim
-) > "!directives!"
-rem Check if creation worked
+echo DEBUG: Module-specific directives NOT found. Checking default. >> "!logfile!"
+set "directives=C:\ES\SHARED\DIRECTIVES\CBL.dir"
+echo DEBUG: Checking for default directives: "!directives!" >> "!logfile!"
 dir "!directives!" > nul 2> nul
-if errorlevel 1 (
-    echo ERROR: Failed to create or access default directives file !directives! after attempting creation. >> "!logfile!"
-    echo ERROR: Failed to create or access default directives file !directives! after attempting creation.
-    exit /b 97
-) else (
-    echo DEBUG: Default directives file created successfully.
-)
-goto SetCobcpy # Jump past the "found" messages
+if !errorlevel! EQU 0 goto DefaultDirectiveFound_CBL_Final
 
-:ModuleDirectiveFound
-echo DEBUG: Found existing module-specific directives file: !directives_mod!
-set "directives=!directives_mod!" # Ensure 'directives' holds the found module-specific path
-goto SetCobcpy
+echo DEBUG: Default directives NOT found. Creating default file... >> "!logfile!"
+echo Creating default directive file: !directives! >> "!logfile!"
+echo Creating default directive file: !directives! # Console Echo
+rem Directory should exist from :INIT, but check again just in case
+if not exist "C:\ES\SHARED\DIRECTIVES" mkdir "C:\ES\SHARED\DIRECTIVES"
+( echo sourcetabs & echo cicsecm(int) & echo charset(ascii) & echo dialect(mf) & echo anim ) > "!directives!"
+dir "!directives!" > nul 2> nul
+if errorlevel 1 ( echo ERROR: Failed to create default directives file !directives! >> "!logfile!" & echo ERROR: Failed to create default directives file !directives! & exit /b 97 )
+echo DEBUG: Default directives file created successfully. >> "!logfile!"
+goto SetCobcpy_CBL_Final
 
-:DefaultDirectiveFound
-echo DEBUG: Found existing default directives file: !directives!
-# 'directives' variable already holds the correct default path
-goto SetCobcpy
+:ModuleDirectiveFound_CBL_Final
+echo DEBUG: Found existing module-specific directives file: !directives_mod! >> "!logfile!"
+set "directives=!directives_mod!"
+goto SetCobcpy_CBL_Final
 
-:SetCobcpy
-echo DEBUG: Using directives file: !directives!
+:DefaultDirectiveFound_CBL_Final
+echo DEBUG: Found existing default directives file: !directives! >> "!logfile!"
+goto SetCobcpy_CBL_Final
 
-REM Setup COBCPY environment ... (OK) ...
-set "COBCPY=!bms_cpy!;!cpy_dir!;%COBCPY%"
+:SetCobcpy_CBL_Final
+echo DEBUG: Using directives file: !directives! >> "!logfile!"
+echo DEBUG: Using directives file: !directives! # Console Echo
+
+rem Setup COBCPY environment
+set "COBCPY=!bms_cpy!;!cpy_dir!;%COBCPY%" # Append local paths to inherited COBCPY
 echo Using COBCPY=!COBCPY!>> "!logfile!"
 
-REM Run the compilation ... (OK) ...
-echo cobol "!source_file!",nul,"!listing!\!modname!.lst",nul, ANIM GNT("!loadlib!\!modname!.gnt") COBIDY("!loadlib!") USE("!directives!") NOQUERY ;>> "!logfile!"
-cobol "!source_file!",nul,"!listing!\!modname!.lst",nul, ANIM GNT("!loadlib!\!modname!.gnt") COBIDY("!loadlib!") USE("!directives!") NOQUERY ;>> "!logfile!" 2>&1
+rem --- Enhanced Logging Around Compilation ---
+set "COBOL_CMD_LINE=cobol "!source_file!",nul,"!listing!\!modname!.lst",nul, ANIM GNT("!loadlib!\!modname!.gnt") COBIDY("!loadlib!") USE("!directives!") NOQUERY ;"
+echo INFO: Preparing to execute COBOL compile command. >> "!logfile!"
+echo CMD: %COBOL_CMD_LINE% >> "!logfile!" # Log the command line exactly as it will run
 
-set "_sub_rc=!errorlevel!"
+rem --- Execute the Compilation ---
+echo INFO: Executing COBOL command... # Console Echo
+%COBOL_CMD_LINE% >> "!logfile!" 2>&1
+set "_sub_rc=!errorlevel!" # Capture return code IMMEDIATELY
 
-REM Copy compiled files ... (OK) ...
-if !_sub_rc! leq 8 ( /* ... copy ... */ ) else ( /* ... echo skip ... */ )
+rem Log the result
+echo INFO: COBOL Compile command finished. Captured Return Code: !_sub_rc! >> "!logfile!"
+echo INFO: COBOL Compile command finished. Captured Return Code: !_sub_rc! # Console Echo
 
-exit /b !_sub_rc!
+rem Copy compiled files based on captured RC
+if !_sub_rc! leq 8 (
+  echo INFO: Compile RC= !_sub_rc! (Success or Warning), copying output files... >> "!logfile!"
+  echo INFO: Compile RC= !_sub_rc! (Success or Warning), copying output files... # Console Echo
+  copy /Y "!loadlib!\!modname!.gnt" "!execpath!\!modname!.gnt" >> "!logfile!" 2>&1
+  copy /Y "!loadlib!\!modname!.idy" "!execpath!\!modname!.idy" >> "!logfile!" 2>&1
+  rem Check for .bnd file existence before copying
+  if exist "!loadlib!\!modname!.bnd" (
+    copy /Y "!loadlib!\!modname!.bnd" "!execpath!\!modname!.bnd" >> "!logfile!" 2>&1
+  )
+  echo Copied compiled files to execution directory: !execpath! >> "!logfile!"
+  echo Copied compiled files to execution directory: !execpath! # Console Echo
+) else (
+  echo ERROR: Compile RC= !_sub_rc! (Failure), skipping copy of output files. >> "!logfile!"
+  echo ERROR: Compile RC= !_sub_rc! (Failure), skipping copy of output files. # Console Echo
+)
 
-REM ... ( :EXIT section - OK) ...
+exit /b !_sub_rc! # Exit subroutine with the captured compile RC
+
+REM =====================================================================
+REM === SECTION 6: EXIT                                             ===
+REM =====================================================================
 :EXIT
-echo Compilation complete with return code %_rc% >> "!logfile!"
-echo Compilation complete with return code %_rc%
+rem _rc was set right after the CALL in the :COMPILE section
+echo Compilation complete with final overall return code %_rc% >> "!logfile!"
+echo Compilation complete with final overall return code %_rc%
 exit /b %_rc%
