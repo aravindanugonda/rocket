@@ -7,31 +7,30 @@ jobs:
   test-setup:  
     runs-on: self-hosted  
     steps:  
-      - name: Test SetupEnv.bat Execution  
+      - name: Check out repository  
+        uses: actions/checkout@v3  
+        
+      - name: Test SetupEnv through wrapper script  
         shell: cmd  
         run: |  
-          echo ======= TESTING SETUPENV.BAT =======  
+          echo ======= TESTING ENTERPRISE DEVELOPER SETUP =======  
           echo Current Directory: %CD%  
-          echo Current User: %USERNAME%  
           
-          echo ======= FILE CHECKS =======  
-          IF EXIST "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" (  
-            echo SetupEnv.bat EXISTS  
+          IF EXIST "Scripts\edenv.bat" (  
+            echo Found wrapper script: Scripts\edenv.bat  
           ) ELSE (  
-            echo SetupEnv.bat MISSING  
+            echo ERROR: Wrapper script missing  
             exit 1  
           )  
           
-          echo ======= ATTEMPTING SETUPENV.BAT =======  
-          call "%ProgramFiles(x86)%\Micro Focus\Enterprise Developer\SetupEnv.bat" 32  
-          echo SetupEnv.bat Return Code: %ERRORLEVEL%  
+          echo ======= CALLING WRAPPER SCRIPT =======  
+          call Scripts\edenv.bat 32  
           
-          echo ======= ENVIRONMENT AFTER SETUP =======  
-          echo COBDIR=%COBDIR%  
-          
-          IF DEFINED COBDIR (  
-            echo Enterprise Developer setup succeeded  
-          ) ELSE (  
-            echo Enterprise Developer setup failed  
+          echo ======= ENVIRONMENT CHECK =======  
+          if defined COBDIR (  
+            echo COBDIR=%COBDIR%  
+            echo Setup successful  
+          ) else (  
+            echo Setup failed  
             exit 1  
           )
