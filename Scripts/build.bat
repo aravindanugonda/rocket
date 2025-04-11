@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-REM ... (SECTION 1: PARAMETERS) ...
+REM ... (SECTION 1: PARAMETERS - OK) ...
 :PARAMETERS
 set base=C:\Build\Rehost
 set build_base=C:\Build\Rehost
@@ -21,6 +21,9 @@ set BYPASSCBL="XXXXXXXX"
 
 REM ... (SECTION 2: INITIALIZATION ) ...
 :INIT
+REM Ensure C:\Temp exists early on
+if not exist "C:\Temp" mkdir "C:\Temp"
+
 REM Normalize parameters ... (OK) ...
 for /f "tokens=*" %%V in ('powershell -command "$ENV:modtype.toUpper()"') do set modtype=%%V
 for /f "tokens=*" %%V in ('powershell -command "$ENV:modname.toUpper()"') do set modname=%%V
@@ -32,43 +35,92 @@ set mytime=%time::=.%
 set mytime=%mytime: =%
 
 echo DEBUG build.bat: Verifying pre-set environment...
-if not defined COBDIR ( /* ... exit ... */ ) else ( echo DEBUG build.bat: COBDIR is !COBDIR! )
+if not defined COBDIR ( echo ERROR in build.bat: COBDIR is not defined! & exit /b 98 )
+echo DEBUG build.bat: COBDIR is !COBDIR!
+
 echo DEBUG build.bat: Checking PATH...
 echo PATH=!PATH!
 set "MFBIN_PATH=!COBDIR!bin"
 echo "!PATH!" | findstr /i /c:"!MFBIN_PATH!" > nul
-if errorlevel 1 ( /* ... warning ... */ ) else ( echo DEBUG build.bat: Found !MFBIN_PATH! in PATH. )
+if errorlevel 1 ( echo WARNING in build.bat: PATH does not seem to contain !MFBIN_PATH! ) else ( echo DEBUG build.bat: Found !MFBIN_PATH! in PATH. )
 
 set logfile=%logdir%\Compile_%mydate%_%mytime%.log
+echo DEBUG: Logfile path set to: "!logfile!"
 
-rem Create directories - Add check for C:\Temp
-if not exist "C:\Temp" mkdir "C:\Temp"
+rem Create OTHER directories needed by this script
+echo DEBUG: Ensuring other base directories exist...
+if not exist "C:\Build" mkdir "C:\Build"
+if not exist "C:\Build\Rehost" mkdir "C:\Build\Rehost"
 if not exist "!loadlib!" mkdir "!loadlib!"
 if not exist "!listing!" mkdir "!listing!"
-if not exist "!logdir!" mkdir "!logdir!"
+rem Create log dir specifically right before first use below
+if not exist "C:\ES" mkdir "C:\ES"
+if not exist "C:\ES\SHARED" mkdir "C:\ES\SHARED"
+if not exist "C:\ES\SHARED\DIRECTIVES" mkdir "C:\ES\SHARED\DIRECTIVES"
+if not exist "C:\ES\!target_env!" mkdir "C:\ES\!target_env!"
 if not exist "!execpath!" mkdir "!execpath!"
-REM Check errorlevel after mkdir? Maybe later if needed. For now, assume they work or fail silently if path issue resolved.
+echo DEBUG: Finished ensuring other directories.
+
 
 REM =====================================================================
-REM === SECTION 3: COMPILATION LOGIC                                ===
+REM === SECTION 3: COMPILATION LOGIC (Debug Redirection)            ===
 REM =====================================================================
 :COMPILE
-echo =================================================================== >> "!logfile!"
-echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment >> "!logfile!"
-echo =================================================================== >> "!logfile!"
-echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment
-
-if /i "!modtype!"=="BMS" (
-  call :COMPILE_BMS
-) else if /i "!modtype!"=="CBL" 
-  call :COMPILE_COBOL
-) else (                        
-  echo ERROR: Invalid module type specified: !modtype! >> "!logfile!"
-  echo ERROR: Invalid module type specified: !modtype!
-  echo Valid types are BMS or CBL
-  exit /b 12
+rem --- Ensure log directory exists RIGHT before first write ---
+echo DEBUG: Ensuring log directory exists: "!logdir!"
+if not exist "!logdir!" mkdir "!logdir!"
+if not exist "!logdir!" (
+  echo ERROR: Failed to create log directory: !logdir! Cannot proceed.
+  exit /b 96
+) else (
+  echo DEBUG: Log directory exists or was created.
 )
 
+rem --- Test simple redirection ---
+echo DEBUG: Testing simple redirection to logfile...
+echo Test Line > "!logfile!"
+if errorlevel 1 (
+   echo ERROR: Simple redirection '>' failed! Check path/permissions for !logfile!
+   exit /b 95
+) else (
+   echo DEBUG: Simple redirection '>' seems OK.
+)
+
+rem --- Now try the actual log append ---
+echo DEBUG: Attempting first append redirection '>>' to logfile...
+echo =================================================================== >> "!logfile!"
+if errorlevel 1 (
+   echo ERROR: First append redirection '>>' failed! Syntax incorrect?
+   exit /b 255 # Use 255 as it matches observed error
+) else (
+   echo DEBUG: First append redirection '>>' seems OK.
+)
+
+rem --- If we get here, the first append worked. Continue logging. ---
+echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment >> "!logfile!"
+echo =================================================================== >> "!logfile!"
+echo === COMPILING !modtype! MODULE: !modname! for !target_env! environment # Console Echo
+
+rem --- Use GOTO for dispatch ---
+echo DEBUG: Dispatching based on modtype '!modtype!'...
+if /i "!modtype!"=="BMS" goto CallCompileBMS
+if /i "!modtype!"=="CBL" goto CallCompileCBL
+
+rem --- Handle Invalid Type ---
+echo ERROR: Invalid module type specified: !modtype! >> "!logfile!"
+echo ERROR: Invalid module type specified: !modtype!
+echo Valid types are BMS or CBL
+exit /b 12
+
+:CallCompileBMS
+echo DEBUG: Jumping to :COMPILE_BMS...
+call :COMPILE_BMS
+set "_rc=!errorlevel!"
+goto :EXIT
+
+:CallCompileCBL
+echo DEBUG: Jumping to :COMPILE_COBOL...
+call :COMPILE_COBOL
 set "_rc=!errorlevel!"
 goto :EXIT
 
