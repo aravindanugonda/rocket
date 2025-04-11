@@ -204,7 +204,7 @@ jobs:
           rem Note: *_files variables might be empty, which is okay
 
           echo Starting compilation of modified files for environment: %ENV_NAME%
-          set compilation_exit_code=0 :: Initialize overall code to success  
+          set compilation_exit_code=0
 
           :: Compile BMS files first if any
           if /i "%bms%" NEQ "y" goto SkipBmsBlock
@@ -233,13 +233,7 @@ jobs:
           :CheckCobolBlock
           :: Compile COBOL files ONLY if previous steps were successful
 
-          rem --- DEBUGGING THE GOTO JUMP ---
-          echo DEBUG YAML: At :CheckCobolBlock. compilation_exit_code is !compilation_exit_code!
-          echo DEBUG YAML: About to check if compilation_exit_code (!compilation_exit_code!) is NEQ 0...
           if !compilation_exit_code! NEQ 0 goto SkipCobolDueToBmsError
-
-          echo DEBUG YAML: Check PASSED (compilation_exit_code was 0). Proceeding to check cbl flag...
-          rem --- END DEBUGGING ---
 
           if /i "%cbl%" NEQ "y" goto SkipCobolDueToFlag
           if "%cbl_files%"=="" goto NoCobolFilesListed
