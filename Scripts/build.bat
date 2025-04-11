@@ -150,12 +150,23 @@ if not exist "!source_file!" (
 
 REM Get directives file
 set "directives=C:\ES\SHARED\DIRECTIVES\!modname!.dir"
-if not exist "!directives!" (
+set "directives_mod=!directives!" 
+
+echo DEBUG: Checking for module-specific directives: "!directives_mod!"
+dir "!directives_mod!" > nul 2> nul # Check existence using dir, suppress output
+if errorlevel 1 (
+  echo DEBUG: Module-specific directives NOT found or inaccessible (Errorlevel: !errorlevel!).
   set "directives=C:\ES\SHARED\DIRECTIVES\CBL.dir"
-  if not exist "!directives!" (
+  echo DEBUG: Checking for default directives: "!directives!"
+  dir "!directives!" > nul 2> nul # Check existence using dir
+  if errorlevel 1 (
+    echo DEBUG: Default directives NOT found or inaccessible (Errorlevel: !errorlevel!). Creating default file...
     echo Creating default directive file: !directives! >> "!logfile!"
     echo Creating default directive file: !directives!
-    if not exist "C:\ES\SHARED\DIRECTIVES" mkdir "C:\ES\SHARED\DIRECTIVES"
+    if not exist "C:\ES\SHARED\DIRECTIVES" (
+       echo DEBUG: Creating directory C:\ES\SHARED\DIRECTIVES
+       mkdir "C:\ES\SHARED\DIRECTIVES"
+    )
     (
         echo sourcetabs
         echo cicsecm(int)
@@ -163,8 +174,21 @@ if not exist "!directives!" (
         echo dialect(mf)
         echo anim
     ) > "!directives!"
+    dir "!directives!" > nul 2> nul # Check again after creation
+    if errorlevel 1 (
+       echo ERROR: Failed to create or access default directives file !directives! even after attempting creation.
+       exit /b 97
+    ) else (
+       echo DEBUG: Default directives file created successfully.
+    )
+  ) else (
+    echo DEBUG: Found existing default directives file: !directives!
   )
+) else (
+  echo DEBUG: Found existing module-specific directives file: !directives_mod!
+  set "directives=!directives_mod!" # Ensure directives var holds the module-specific one if found
 )
+echo DEBUG: Using directives file: !directives!
 
 REM Setup COBCPY environment - Append BMS/CPY dirs to existing COBCPY
 set "COBCPY=!bms_cpy!;!cpy_dir!;%COBCPY%" # Use !...! for local dirs, %...% for inherited COBCPY
