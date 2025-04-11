@@ -87,7 +87,7 @@ if /i "!modtype!"=="BMS" (
 )
 
 rem --- Capture the actual return code from the called subroutine ---
-set "_rc=!errorlevel!"  # <-- *** FIX: Capture errorlevel here ***
+set "_rc=!errorlevel!" 
 goto :EXIT
 
 REM =====================================================================
@@ -194,5 +194,5 @@ REM === SECTION 6: EXIT                                               ===
 REM =====================================================================
 :EXIT
 echo Compilation complete with return code %_rc% >> "!logfile!" # Use standard % here is OK
-echo Compilation complete with return code %_rc%
+echo Compilation complete with return code %_rc%                 # Use standard % here is OK
 exit /b %_rc% # Use standard % here is OK
